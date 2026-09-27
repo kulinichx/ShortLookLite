@@ -1,0 +1,9 @@
+Package: com.kokol.shortlooklite
+Name: ShortLook Lite
+Version: 0.1.0
+Architecture: iphoneos-arm64e
+Description: 锁屏通知全屏大头像（ShortLook 精简重写版，iOS 16 RootHide）。支持微信、QQ、通讯录头像。
+Maintainer: kulinichx
+Author: kulinichx
+Section: Tweaks
+Depends: mobilesubstrate, firmware (>= 15.0), preferenceloader

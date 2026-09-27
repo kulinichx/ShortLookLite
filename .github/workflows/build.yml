@@ -1,0 +1,62 @@
+name: Build ShortLook Lite (RootHide)
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-14
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install prerequisites
+        run: |
+          brew install ldid xz make
+          echo "$(brew --prefix make)/libexec/gnubin" >> "$GITHUB_PATH"
+
+      - name: Install RootHide Theos + iOS 16.5 SDK
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euxo pipefail
+          THEOS="$RUNNER_TEMP/theos"
+          git clone --depth 1 --recursive --shallow-submodules https://github.com/roothide/theos.git "$THEOS"
+          "$THEOS/bin/install-sdk" iPhoneOS16.5
+          ls "$THEOS/sdks"
+          echo "THEOS=$THEOS" >> "$GITHUB_ENV"
+
+      - name: Build package
+        run: |
+          set -euxo pipefail
+          make --version | head -1
+          make clean
+          make package FINALPACKAGE=1 messages=yes
+
+      - name: Inspect
+        run: |
+          set -euxo pipefail
+          mkdir -p artifacts
+          cp packages/*.deb artifacts/
+          find .theos/_ -type f | sort | tee artifacts/files.txt
+          DYLIB="$(find .theos/_ -type f -name 'ShortLookLite.dylib' | head -n 1)"
+          test -n "$DYLIB"
+          file "$DYLIB" | tee artifacts/dylib-file.txt
+          otool -arch arm64e -hv "$DYLIB" | tee artifacts/dylib-header.txt
+          otool -L "$DYLIB" | tee artifacts/dylib-deps.txt
+          shasum -a 256 artifacts/*.deb | tee artifacts/sha256.txt
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: ShortLookLite-roothide
+          path: artifacts/
+          if-no-files-found: error
