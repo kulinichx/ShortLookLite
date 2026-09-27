@@ -1,6 +1,40 @@
 #import "DDNotificationViewManager.h"
 #import "DDNotificationViewController.h"
 #import "DDWelcomeNotification.h"
+#import "SLDiag.h"
+
+// iPhone 14 Pro port: the lock glyph lives in the Dynamic Island (SystemAperture scene), which sits
+// above every SpringBoard window. On the notch devices ShortLook was made for, that glyph was part of
+// the lock screen and ShortLook's full-screen window covered it. Hide the island's windows while
+// ShortLook is on screen and put them back afterwards so it looks the way the original did.
+static NSMutableArray<UIWindow *> *hiddenApertureWindows;
+static NSMutableArray<NSNumber *> *hiddenApertureAlphas;
+
+static void SLSetSystemApertureHidden(BOOL hidden) {
+	if (hidden) {
+		if (hiddenApertureWindows) return;
+		hiddenApertureWindows = [NSMutableArray array];
+		hiddenApertureAlphas = [NSMutableArray array];
+		for (UIScene *scene in [UIApplication sharedApplication].connectedScenes) {
+			if (![scene isKindOfClass:[UIWindowScene class]] || ![scene.session.role containsString:@"SystemAperture"]) continue;
+			for (UIWindow *window in ((UIWindowScene *)scene).windows) {
+				if (window.hidden) continue;
+				[hiddenApertureWindows addObject:window];
+				[hiddenApertureAlphas addObject:@(window.alpha)];
+				window.alpha = 0;
+			}
+		}
+		SLDiagLog(@"隐藏灵动岛窗口 %lu 个：%@", (unsigned long)hiddenApertureWindows.count, hiddenApertureWindows);
+	} else {
+		if (!hiddenApertureWindows) return;
+		[hiddenApertureWindows enumerateObjectsUsingBlock:^(UIWindow *window, NSUInteger index, BOOL *stop) {
+			window.alpha = hiddenApertureAlphas[index].doubleValue;
+		}];
+		SLDiagLog(@"恢复灵动岛窗口 %lu 个", (unsigned long)hiddenApertureWindows.count);
+		hiddenApertureWindows = nil;
+		hiddenApertureAlphas = nil;
+	}
+}
 
 @implementation DDNotificationViewManager {
 	DDNotificationViewController *viewController;
@@ -31,6 +65,7 @@
 		[(UIWindow *)_targetView setRootViewController:viewController];
 	}
 	[_targetView addSubview:viewController.view];
+	SLSetSystemApertureHidden(YES);
 }
 
 - (void)destroyView:(UIView *)view {
@@ -41,6 +76,7 @@
 		}
 	}
 	if ([viewController notificationView] == view) viewController = nil;
+	if (!viewController) SLSetSystemApertureHidden(NO);
 }
 
 - (void)destroyView {

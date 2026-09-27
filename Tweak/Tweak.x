@@ -296,7 +296,7 @@ static void handleWake(void) {
 %end
 
 %ctor {
-	SLDiagLog(@"==== ShortLook 1.0.23+reborn.3（诊断版）已加载 ====");
+	SLDiagLog(@"==== ShortLook 1.0.23+reborn.4（诊断版）已加载 ====");
 	@autoreleasepool {
 		controlSource = [[DDNotificationSBControlSource alloc] init];
 		updateBackgroundProvider();
