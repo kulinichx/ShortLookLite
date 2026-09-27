@@ -13,6 +13,7 @@
 #import "DDDemoNotificationManager.h"
 #import "DDLunarScreenStateManager.h"
 #import "DDUserNotification.h"
+#import "SLDiag.h"
 
 #define kPreferencesDomain CFSTR("co.dynastic.ios.tweak.shortlook")
 
@@ -67,22 +68,30 @@ static void createWindowIfNecessary(void) {
 	if (notificationWindow) return;
 	notificationWindow = [[DDNotificationWindow alloc] init];
 	[DDNotificationViewManager sharedManager].targetView = notificationWindow;
+	UIWindowScene *scene = nil;
+	if (@available(iOS 13, *)) scene = notificationWindow.windowScene;
+	SLDiagLog(@"创建窗口 %@ scene=%@ frame=%@ hidden=%d level=%.0f", notificationWindow, scene, NSStringFromCGRect(notificationWindow.frame), notificationWindow.hidden, notificationWindow.windowLevel);
 }
 
 static void presentWelcomeNotification(void) {
+	SLDiagLog(@"显示欢迎通知");
 	createWindowIfNecessary();
 	[[DDNotificationViewManager sharedManager] presentWelcomeNotification];
 }
 
 static void testRequested(CFNotificationCenterRef center, void *observer, CFStringRef name, const void *object, CFDictionaryRef userInfo) {
+	SLDiagLog(@"收到发送测试通知 enabled=%d welcomed=%d", enabled, controlSource.welcomed);
 	if (!enabled) return;
 	createWindowIfNecessary();
 	[[DDNotificationViewManager sharedManager] prepareForDemoNotificationWithCompletion:^{
+		SLDiagLog(@"测试：黑幕动画完成，回到锁屏并发送演示通知");
 		SBLockScreenManager *lockScreenManager = [%c(SBLockScreenManager) sharedInstance];
 		if ([lockScreenManager respondsToSelector:@selector(_activateLockScreenAnimated:animationProvider:automatically:inScreenOffMode:dismissNotificationCenter:completion:)]) {
 			[lockScreenManager _activateLockScreenAnimated:NO animationProvider:nil automatically:YES inScreenOffMode:NO dismissNotificationCenter:YES completion:nil];
-		} else {
+		} else if ([lockScreenManager respondsToSelector:@selector(_activateLockScreenAnimated:animationProvider:automatically:inScreenOffMode:dimInAnimation:dismissNotificationCenter:completion:)]) {
 			[lockScreenManager _activateLockScreenAnimated:NO animationProvider:nil automatically:YES inScreenOffMode:NO dimInAnimation:NO dismissNotificationCenter:YES completion:nil];
+		} else {
+			SLDiagLog(@"测试：两个 _activateLockScreenAnimated 方法都不存在，没法回到锁屏");
 		}
 		[controlSource setDemoing:YES];
 		[[DDDemoNotificationManager sharedManager] sendDemoNotification];
@@ -96,6 +105,7 @@ static void testRequested(CFNotificationCenterRef center, void *observer, CFStri
 }
 
 static void handleWake(void) {
+	SLDiagLog(@"亮屏完成 handleWake enabled=%d welcomed=%d 队列=%lu", enabled, controlSource.welcomed, (unsigned long)queuedNotifications.count);
 	if (!enabled) return;
 	if (tearDownTimer) [tearDownTimer invalidate];
 	if (!controlSource.welcomed && ![[DDNotificationViewManager sharedManager] isPresentingNotification]) {
@@ -122,10 +132,14 @@ static void handleWake(void) {
 
 - (void)_alertNowForNotificationRequest:(NCNotificationRequest *)request {
 	%orig;
+	SLDiagLog(@"通知到达 _alertNow %@ enabled=%d welcomed=%d", [request valueForKey:@"sectionIdentifier"], enabled, controlSource.welcomed);
 	if (!enabled || !controlSource.welcomed) return;
 	createWindowIfNecessary();
-	if (![[%c(SBLockScreenManager) sharedInstance] isLockScreenVisible]) return;
-	if (![[self screenController] canTurnOnScreenForNotificationRequest:request]) return;
+	BOOL lockScreenVisible = [[%c(SBLockScreenManager) sharedInstance] isLockScreenVisible];
+	BOOL canTurnOnScreen = [[self screenController] canTurnOnScreenForNotificationRequest:request];
+	SLDiagLog(@"  锁屏可见=%d 可亮屏=%d", lockScreenVisible, canTurnOnScreen);
+	if (!lockScreenVisible) return;
+	if (!canTurnOnScreen) return;
 	DDUserNotification *notification = [[DDUserNotification alloc] initWithNotificationRequest:request];
 	if (!notification) return;
 
@@ -135,6 +149,7 @@ static void handleWake(void) {
 	}
 
 	DDLunarScreenState screenState = [[DDLunarScreenStateManager sharedManager] screenState];
+	SLDiagLog(@"  屏幕状态=%ld（0 熄屏排队，1 由提供者熄屏，2 亮屏）正在显示=%d", (long)screenState, [[DDNotificationViewManager sharedManager] isPresenting]);
 	if (screenState == DDLunarScreenStateOffByProvider) {
 		[[DDNotificationViewManager sharedManager] presentNotification:notification];
 	} else if (screenState == DDLunarScreenStateOn) {
@@ -159,11 +174,13 @@ static void handleWake(void) {
 %hook SBScreenWakeAnimationController
 
 - (void)_runCompletionHandlerForWake:(BOOL)wake {
+	SLDiagLog(@"_runCompletionHandlerForWake: %d", wake);
 	%orig;
 	if (wake) handleWake();
 }
 
 - (void)_runCompletionHandlerForWake:(BOOL)wake reason:(id)reason {
+	SLDiagLog(@"_runCompletionHandlerForWake:reason: %d", wake);
 	if (wake) {
 		handleWake();
 		%orig(YES, reason);
@@ -257,12 +274,17 @@ static void handleWake(void) {
 	[DDNotificationViewManager sharedManager].controlSource = controlSource;
 	[[[DDNotificationContactPhotoProviderPluginLoader alloc] init] loadPlugins];
 	updateBackgroundProvider();
+	SLDiagLog(@"SpringBoard 启动完成 enabled=%d welcomed=%d 插件加载完毕", enabled, controlSource.welcomed);
 	if (!controlSource.welcomed) presentWelcomeNotification();
+	dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+		SLDiagDumpRuntime();
+	});
 }
 
 %end
 
 %ctor {
+	SLDiagLog(@"==== ShortLook 1.0.23+reborn.2（诊断版）已加载 ====");
 	@autoreleasepool {
 		controlSource = [[DDNotificationSBControlSource alloc] init];
 		updateBackgroundProvider();
