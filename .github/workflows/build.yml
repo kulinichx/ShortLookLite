@@ -28,7 +28,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euxo pipefail
-          THEOS="$RUNNER_TEMP/theos"
+          export THEOS="$RUNNER_TEMP/theos"
           git clone --depth 1 --recursive --shallow-submodules https://github.com/roothide/theos.git "$THEOS"
           "$THEOS/bin/install-sdk" iPhoneOS16.5
           ls "$THEOS/sdks"
