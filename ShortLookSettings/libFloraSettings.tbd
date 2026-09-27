@@ -1,0 +1,8 @@
+--- !tapi-tbd
+tbd-version:     4
+targets:         [ arm64-ios, arm64e-ios ]
+install-name:    '@loader_path/../FloraSettings.bundle/FloraSettings'
+exports:
+  - targets:         [ arm64-ios, arm64e-ios ]
+    objc-classes:    [ DDBaseSettingsController, DDSettingsController, DDSettingsSubController, DDSettingsNavigationTitleView ]
+...

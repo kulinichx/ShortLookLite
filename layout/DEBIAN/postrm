@@ -1,0 +1,10 @@
+#!/bin/bash
+set -e
+
+# relaunch IMDPersistenceAgent so we get injected into it, but not when we’re upgrading or it’ll get stopped
+# again by postinst (thanks #!)
+if [[ $1 != upgrade ]]; then
+	launchctl stop com.apple.imdpersistence.IMDPersistenceAgent
+else
+	:
+fi

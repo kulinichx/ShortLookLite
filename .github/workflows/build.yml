@@ -1,4 +1,4 @@
-name: Build ShortLook Lite (RootHide)
+name: Build ShortLook Reborn (RootHide)
 
 on:
   workflow_dispatch:
@@ -47,7 +47,7 @@ jobs:
           mkdir -p artifacts
           cp packages/*.deb artifacts/
           find .theos/_ -type f | sort | tee artifacts/files.txt
-          DYLIB="$(find .theos/_ -type f -name 'ShortLookLite.dylib' | head -n 1)"
+          DYLIB="$(find .theos/_ -type f -name 'ShortLook.dylib' | head -n 1)"
           test -n "$DYLIB"
           file "$DYLIB" | tee artifacts/dylib-file.txt
           otool -arch arm64e -hv "$DYLIB" | tee artifacts/dylib-header.txt
@@ -57,6 +57,6 @@ jobs:
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: ShortLookLite-roothide
+          name: ShortLook-reborn-roothide
           path: artifacts/
           if-no-files-found: error

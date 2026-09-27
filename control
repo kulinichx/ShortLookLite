@@ -1,9 +1,12 @@
-Package: com.kokol.shortlooklite
-Name: ShortLook Lite
-Version: 0.1.0
+Package: co.dynastic.ios.tweak.shortlook
+Name: ShortLook
+Depends: mobilesubstrate, preferenceloader, firmware (>= 15.0)
+Provides: co.dynastic.ios.lib.flora
+Conflicts: co.dynastic.ios.lib.flora, com.jerrytian.shortlook.plugin.contact-photo.wechat, com.jerrytian.shortlook.plugin.contact-photo.qq, com.jeffresc.shortlook.plugin.contact-photo.wechat
+Replaces: co.dynastic.ios.lib.flora, com.jerrytian.shortlook.plugin.contact-photo.wechat, com.jerrytian.shortlook.plugin.contact-photo.qq, com.jeffresc.shortlook.plugin.contact-photo.wechat
 Architecture: iphoneos-arm64e
-Description: 锁屏通知全屏大头像（ShortLook 精简重写版，iOS 16 RootHide）。支持微信、QQ、通讯录头像。
-Maintainer: kulinichx
-Author: kulinichx
+Description: ShortLook shows you your notifications at a glance. ShortLook displays on your locked iPhone as you receive a notification using it's beautiful full screen design, allowing for readability from a distance. Made to be as unobtrusive as possible, it dismisses as soon as you tap the screen or Raise to Wake. It's configurable UI and behaviours ensure that ShortLook works how you want it to work.
+Maintainer: Ayden Panhuyzen
+Author: Dynastic
 Section: Tweaks
-Depends: mobilesubstrate, firmware (>= 15.0), preferenceloader
+Version: 1.0.23+reborn.1

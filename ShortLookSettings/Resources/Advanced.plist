@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>items</key>
+	<array>
+		<dict>
+			<key>cell</key>
+			<string>PSGroupCell</string>
+		</dict>
+		<dict>
+			<key>PostNotification</key>
+			<string>co.dynastic.ios.tweak.shortlook.changed</string>
+			<key>cell</key>
+			<string>PSSwitchCell</string>
+			<key>cellClass</key>
+			<string>PSSwitchTableCell</string>
+			<key>default</key>
+			<false/>
+			<key>defaults</key>
+			<string>co.dynastic.ios.tweak.shortlook</string>
+			<key>key</key>
+			<string>HideIcon</string>
+			<key>label</key>
+			<string>Hide Icon and Profile Picture</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSGroupCell</string>
+			<key>footerText</key>
+			<string>Log extra information to console and disk for debugging purposes.</string>
+		</dict>
+		<dict>
+			<key>PostNotification</key>
+			<string>co.dynastic.ios.tweak.shortlook.changed</string>
+			<key>cell</key>
+			<string>PSSwitchCell</string>
+			<key>cellClass</key>
+			<string>PSSwitchTableCell</string>
+			<key>default</key>
+			<false/>
+			<key>defaults</key>
+			<string>co.dynastic.ios.tweak.shortlook</string>
+			<key>key</key>
+			<string>DebugLogging</string>
+			<key>label</key>
+			<string>Debug Logging</string>
+		</dict>
+	</array>
+	<key>title</key>
+	<string>Advanced</string>
+</dict>
+</plist>

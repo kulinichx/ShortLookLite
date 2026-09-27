@@ -1,0 +1,5 @@
+#!/bin/bash
+set -e
+
+# relaunch IMDPersistenceAgent so we get injected into it (thanks #!)
+launchctl stop com.apple.imdpersistence.IMDPersistenceAgent

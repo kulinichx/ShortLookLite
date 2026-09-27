@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>English</string>
+	<key>CFBundleDisplayName</key>
+	<string>QQ</string>
+	<key>CFBundleExecutable</key>
+	<string>ShortLook-QQ</string>
+	<key>CFBundleIdentifier</key>
+	<string>co.dynastic.ios.tweak.shortlook.plugin.qq</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>ShortLook-QQ</string>
+	<key>CFBundlePackageType</key>
+	<string>BNDL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.0.23</string>
+	<key>CFBundleVersion</key>
+	<string>1.0.23</string>
+	<key>DDNotificationExternalProviderAPIVersion</key>
+	<integer>1</integer>
+	<key>DDNotificationExternalProviderClasses</key>
+	<dict>
+		<key>QQContactPhotoProvider</key>
+		<string>com.tencent.mqq</string>
+	</dict>
+</dict>
+</plist>
