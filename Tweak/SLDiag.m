@@ -121,5 +121,13 @@ void SLDiagDumpRuntime(void) {
 	SLDiagListMethods(@"SBLiftToWakeController", nil);
 	SLDiagListMethods(@"NCNotificationDispatcher", @"post|request");
 	SLDiagListMethods(@"SBNCNotificationDispatcher", @"post|request|alert");
+	SLDiagCheck(@"NCNotificationRequest", @"notificationRequestWithSectionId:notificationId:threadId:title:message:timestamp:destinations:", YES);
+	SLDiagCheck(@"SBApplicationController", @"alwaysAvailableApplicationBundle", YES);
+	SLDiagListMethods(@"NCMutableNotificationRequest", @"^set");
+	SLDiagListMethods(@"NCMutableNotificationContent", @"^set");
+	SLDiagListMethods(@"NCMutableNotificationOptions", @"^set");
+	for (UIScene *scene in [UIApplication sharedApplication].connectedScenes) {
+		SLDiagLog(@"  scene %@ role=%@ id=%@", NSStringFromClass([scene class]), scene.session.role, scene.session.persistentIdentifier);
+	}
 	SLDiagLog(@"==== 运行时检查结束 ====");
 }

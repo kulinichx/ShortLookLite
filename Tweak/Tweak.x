@@ -86,20 +86,32 @@ static void testRequested(CFNotificationCenterRef center, void *observer, CFStri
 	[[DDNotificationViewManager sharedManager] prepareForDemoNotificationWithCompletion:^{
 		SLDiagLog(@"测试：黑幕动画完成，回到锁屏并发送演示通知");
 		SBLockScreenManager *lockScreenManager = [%c(SBLockScreenManager) sharedInstance];
-		if ([lockScreenManager respondsToSelector:@selector(_activateLockScreenAnimated:animationProvider:automatically:inScreenOffMode:dismissNotificationCenter:completion:)]) {
-			[lockScreenManager _activateLockScreenAnimated:NO animationProvider:nil automatically:YES inScreenOffMode:NO dismissNotificationCenter:YES completion:nil];
-		} else if ([lockScreenManager respondsToSelector:@selector(_activateLockScreenAnimated:animationProvider:automatically:inScreenOffMode:dimInAnimation:dismissNotificationCenter:completion:)]) {
-			[lockScreenManager _activateLockScreenAnimated:NO animationProvider:nil automatically:YES inScreenOffMode:NO dimInAnimation:NO dismissNotificationCenter:YES completion:nil];
-		} else {
-			SLDiagLog(@"测试：两个 _activateLockScreenAnimated 方法都不存在，没法回到锁屏");
+		@try {
+			if ([lockScreenManager respondsToSelector:@selector(_activateLockScreenAnimated:animationProvider:automatically:inScreenOffMode:dismissNotificationCenter:completion:)]) {
+				[lockScreenManager _activateLockScreenAnimated:NO animationProvider:nil automatically:YES inScreenOffMode:NO dismissNotificationCenter:YES completion:nil];
+			} else if ([lockScreenManager respondsToSelector:@selector(_activateLockScreenAnimated:animationProvider:automatically:inScreenOffMode:dimInAnimation:dismissNotificationCenter:completion:)]) {
+				[lockScreenManager _activateLockScreenAnimated:NO animationProvider:nil automatically:YES inScreenOffMode:NO dimInAnimation:NO dismissNotificationCenter:YES completion:nil];
+			} else {
+				SLDiagLog(@"测试：两个 _activateLockScreenAnimated 方法都不存在，没法回到锁屏");
+			}
+			SLDiagLog(@"测试：已回到锁屏");
+		} @catch (NSException *exception) {
+			SLDiagLog(@"测试：回到锁屏出错 %@：%@", exception.name, exception.reason);
 		}
 		[controlSource setDemoing:YES];
 		[[DDDemoNotificationManager sharedManager] sendDemoNotification];
+		SLDiagLog(@"测试：演示通知已发出，等待自动收起");
 		[NSTimer scheduledTimerWithTimeInterval:[DDNotificationViewSettings sharedSettings].timeUntilDismiss + 1.0 repeats:NO block:^(NSTimer *timer) {
-			[controlSource setDemoing:NO];
-			[[%c(SBLockScreenManager) sharedInstance] unlockUIFromSource:2 withOptions:nil];
-			[[DDNotificationViewManager sharedManager] destroyDemoNotificationPreparations];
-			[[DDDemoNotificationManager sharedManager] clearDemoNotifications];
+			@try {
+				[controlSource setDemoing:NO];
+				[[%c(SBLockScreenManager) sharedInstance] unlockUIFromSource:2 withOptions:nil];
+				[[DDNotificationViewManager sharedManager] destroyDemoNotificationPreparations];
+				[[DDDemoNotificationManager sharedManager] clearDemoNotifications];
+				SLDiagLog(@"测试：演示结束");
+			} @catch (NSException *exception) {
+				SLDiagLog(@"测试：结束演示出错 %@：%@", exception.name, exception.reason);
+				[[DDNotificationViewManager sharedManager] destroyDemoNotificationPreparations];
+			}
 		}];
 	}];
 }
@@ -284,7 +296,7 @@ static void handleWake(void) {
 %end
 
 %ctor {
-	SLDiagLog(@"==== ShortLook 1.0.23+reborn.2（诊断版）已加载 ====");
+	SLDiagLog(@"==== ShortLook 1.0.23+reborn.3（诊断版）已加载 ====");
 	@autoreleasepool {
 		controlSource = [[DDNotificationSBControlSource alloc] init];
 		updateBackgroundProvider();
