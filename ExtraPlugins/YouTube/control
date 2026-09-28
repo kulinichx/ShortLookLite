@@ -1,0 +1,9 @@
+Package: com.jeffresc.shortlook.plugin.contact-photo.youtube
+Name: YouTube Video Thumbnails for ShortLook
+Version: 1.0.1+reborn.1
+Architecture: iphoneos-arm64e
+Description: Show YouTube video thumbnails in ShortLook when you receive a YouTube upload notification! Rebuilt for ShortLook Reborn (RootHide).
+Maintainer: JeffResc
+Author: Jeff Rescignano
+Section: Tweaks (ShortLook)
+Depends: mobilesubstrate, co.dynastic.ios.tweak.shortlook

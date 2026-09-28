@@ -31,12 +31,13 @@ ShortLook 1.0.23（Dynastic）的复刻版，适配 iOS 16 和 RootHide（多巴
 | `IMD/` | ShortLookIMD.dylib（IMDPersistenceAgent，给短信通知补联系人 ID） |
 | `FloraSettings/` | Flora 设置框架（FloraSettings.bundle） |
 | `ShortLookSettings/` | 设置页 plist 和图标（ShortLookSettings.bundle） |
-| `Plugins/` | 微信、QQ 头像插件 |
+| `Plugins/` | 微信、QQ 头像插件（打进主包） |
+| `ExtraPlugins/` | 其他 App 的头像插件，每个单独一个 deb，见 `ExtraPlugins/README.md` |
 | `layout/` | 原版素材、PreferenceLoader 入口、postinst/postrm |
 | `.github/workflows/build.yml` | 自动编译 |
 
 ## 编译
-推送到 `main` 分支后，GitHub Actions 会用 roothide/theos 和 iPhoneOS16.5.sdk 自动编译。deb 在 Actions 运行页面底部的 Artifacts 里。
+推送到 `main` 分支后，GitHub Actions 会用 roothide/theos 和 iPhoneOS16.5.sdk 自动编译。deb 在 Actions 运行页面底部的 Artifacts 里：根目录是 ShortLook 主包，`plugins/` 里是其他 App 的头像插件。
 
 本地编译要先装好 roothide Theos，然后执行：
 ```

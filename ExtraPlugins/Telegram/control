@@ -1,0 +1,9 @@
+Package: com.redenticdev.shortlook.plugin.contact-photo.telegram
+Name: Telegram Contact Photos for ShortLook
+Version: 1.1.0+reborn.1
+Architecture: iphoneos-arm64e
+Description: Show Telegram Contact Photos in ShortLook when you receive a Telegram notification! Rebuilt for ShortLook Reborn (RootHide).
+Maintainer: RedenticDev
+Author: RedenticDev
+Section: Tweaks (ShortLook)
+Depends: mobilesubstrate, co.dynastic.ios.tweak.shortlook

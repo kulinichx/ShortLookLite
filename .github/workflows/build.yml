@@ -41,18 +41,34 @@ jobs:
           make clean
           make package FINALPACKAGE=1 messages=yes
 
+      - name: Build extra plugin packages
+        run: |
+          set -euxo pipefail
+          mkdir -p artifacts/plugins
+          for dir in ExtraPlugins/*/; do
+            [ -f "$dir/control" ] || continue
+            make -C "$dir" clean
+            make -C "$dir" package FINALPACKAGE=1 messages=yes
+            cp "$dir"/packages/*.deb artifacts/plugins/
+          done
+          ls -la artifacts/plugins
+
       - name: Inspect
         run: |
           set -euxo pipefail
           mkdir -p artifacts
           cp packages/*.deb artifacts/
+          for bundle in ExtraPlugins/*/.theos/_/Library/Dynastic/ShortLook/Plugins/ContactPhotoProviders/*.bundle; do
+            name="$(basename "$bundle" .bundle)"
+            [ -f "$bundle/$name" ] && lipo -info "$bundle/$name" | tee -a artifacts/plugins-arch.txt || true
+          done
           find .theos/_ -type f | sort | tee artifacts/files.txt
           DYLIB="$(find .theos/_ -type f -name 'ShortLook.dylib' | head -n 1)"
           test -n "$DYLIB"
           file "$DYLIB" | tee artifacts/dylib-file.txt
           otool -arch arm64e -hv "$DYLIB" | tee artifacts/dylib-header.txt
           otool -L "$DYLIB" | tee artifacts/dylib-deps.txt
-          shasum -a 256 artifacts/*.deb | tee artifacts/sha256.txt
+          shasum -a 256 artifacts/*.deb artifacts/plugins/*.deb | tee artifacts/sha256.txt
 
       - name: Upload
         uses: actions/upload-artifact@v4
