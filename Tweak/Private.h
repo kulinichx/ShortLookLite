@@ -5,7 +5,11 @@
 #if __has_include(<roothide.h>)
 #import <roothide.h>
 #else
-#define jbroot(path) (path)
+// Rootless (official Theos): THEOS_PACKAGE_INSTALL_PREFIX is "/var/jb"; rootful: "".
+#ifndef THEOS_PACKAGE_INSTALL_PREFIX
+#define THEOS_PACKAGE_INSTALL_PREFIX ""
+#endif
+#define jbroot(path) ([@THEOS_PACKAGE_INSTALL_PREFIX stringByAppendingString:(path)])
 #endif
 #import "NSObject+SafeKVC.h"
 #import "UIFont+SystemCompact.h"

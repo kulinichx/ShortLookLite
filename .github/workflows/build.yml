@@ -1,10 +1,11 @@
-name: Build ShortLook Reborn (RootHide)
+name: Build ShortLook Reborn (RootHide + Rootless)
 
 on:
   workflow_dispatch:
   push:
     branches:
       - main
+      - dev/multi-jailbreak
 
 permissions:
   contents: read
@@ -13,6 +14,16 @@ jobs:
   build:
     runs-on: macos-14
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # RootHide: Dopamine RootHide, Relaxin (iphoneos-arm64e, hidden jbroot)
+          - scheme: roothide
+            arch: iphoneos-arm64e
+          # Rootless: Dopamine 2.x / 3.x, palera1n rootless (iphoneos-arm64, /var/jb)
+          - scheme: rootless
+            arch: iphoneos-arm64
 
     steps:
       - name: Checkout
@@ -20,17 +31,25 @@ jobs:
 
       - name: Install prerequisites
         run: |
-          brew install ldid xz make
+          brew install ldid xz make dpkg
           echo "$(brew --prefix make)/libexec/gnubin" >> "$GITHUB_PATH"
 
-      - name: Install RootHide Theos + iOS 16.5 SDK
+      - name: Install Theos + iOS 16.5 SDK
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euxo pipefail
           export THEOS="$RUNNER_TEMP/theos"
-          git clone --depth 1 --recursive --shallow-submodules https://github.com/roothide/theos.git "$THEOS"
-          "$THEOS/bin/install-sdk" iPhoneOS16.5
+          if [ "${{ matrix.scheme }}" = "roothide" ]; then
+            git clone --depth 1 --recursive --shallow-submodules https://github.com/roothide/theos.git "$THEOS"
+            "$THEOS/bin/install-sdk" iPhoneOS16.5
+          else
+            git clone --depth 1 --recursive --shallow-submodules https://github.com/theos/theos.git "$THEOS"
+            git clone --depth 1 --filter=blob:none --sparse https://github.com/theos/sdks.git "$RUNNER_TEMP/sdks"
+            git -C "$RUNNER_TEMP/sdks" sparse-checkout set iPhoneOS16.5.sdk
+            mkdir -p "$THEOS/sdks"
+            mv "$RUNNER_TEMP/sdks/iPhoneOS16.5.sdk" "$THEOS/sdks/"
+          fi
           ls "$THEOS/sdks"
           echo "THEOS=$THEOS" >> "$GITHUB_ENV"
 
@@ -38,8 +57,8 @@ jobs:
         run: |
           set -euxo pipefail
           make --version | head -1
-          make clean
-          make package FINALPACKAGE=1 messages=yes
+          make clean THEOS_PACKAGE_SCHEME=${{ matrix.scheme }}
+          make package FINALPACKAGE=1 messages=yes THEOS_PACKAGE_SCHEME=${{ matrix.scheme }}
 
       - name: Build extra plugin packages
         run: |
@@ -47,8 +66,8 @@ jobs:
           mkdir -p artifacts/plugins
           for dir in ExtraPlugins/*/; do
             [ -f "$dir/control" ] || continue
-            make -C "$dir" clean
-            make -C "$dir" package FINALPACKAGE=1 messages=yes
+            make -C "$dir" clean THEOS_PACKAGE_SCHEME=${{ matrix.scheme }}
+            make -C "$dir" package FINALPACKAGE=1 messages=yes THEOS_PACKAGE_SCHEME=${{ matrix.scheme }}
             cp "$dir"/packages/*.deb artifacts/plugins/
           done
           ls -la artifacts/plugins
@@ -58,21 +77,27 @@ jobs:
           set -euxo pipefail
           mkdir -p artifacts
           cp packages/*.deb artifacts/
-          for bundle in ExtraPlugins/*/.theos/_/Library/Dynastic/ShortLook/Plugins/ContactPhotoProviders/*.bundle; do
-            name="$(basename "$bundle" .bundle)"
-            [ -f "$bundle/$name" ] && lipo -info "$bundle/$name" | tee -a artifacts/plugins-arch.txt || true
+          # Every package must carry the architecture of its scheme.
+          for deb in artifacts/*.deb artifacts/plugins/*.deb; do
+            a="$(dpkg-deb -f "$deb" Architecture)"
+            echo "$(basename "$deb"): $a" | tee -a artifacts/package-arch.txt
+            test "$a" = "${{ matrix.arch }}"
           done
-          find .theos/_ -type f | sort | tee artifacts/files.txt
+          for deb in artifacts/*.deb; do dpkg-deb -c "$deb"; done | tee artifacts/files.txt
+          find . -path '*/.theos/_/*' -name '*.bundle' -type d | while read -r bundle; do
+            name="$(basename "$bundle" .bundle)"
+            [ -f "$bundle/$name" ] || continue
+            { echo "== $bundle"; lipo -info "$bundle/$name"; otool -L "$bundle/$name"; } | tee -a artifacts/bundles.txt
+          done
           DYLIB="$(find .theos/_ -type f -name 'ShortLook.dylib' | head -n 1)"
           test -n "$DYLIB"
           file "$DYLIB" | tee artifacts/dylib-file.txt
-          otool -arch arm64e -hv "$DYLIB" | tee artifacts/dylib-header.txt
           otool -L "$DYLIB" | tee artifacts/dylib-deps.txt
           shasum -a 256 artifacts/*.deb artifacts/plugins/*.deb | tee artifacts/sha256.txt
 
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: ShortLook-reborn-roothide
+          name: ShortLook-reborn-${{ matrix.scheme }}
           path: artifacts/
           if-no-files-found: error
