@@ -15,11 +15,13 @@
 //   Private chats keep the original lookup.
 #import "SLPluginSupport.h"
 #import <UIKit/UIKit.h>
+#import <sqlite3.h>
 #import "TGSFolderFinder.h"
 #import "TGSInitialsPictureGenerator.h"
 
 @interface NCNotificationRequest : NSObject
 - (NSString *)threadIdentifier;
+- (NSString *)sectionIdentifier;
 - (id)content;
 @end
 
@@ -140,17 +142,15 @@ static NSString *TGSFolderKeyForUserID(NSString *userID) {
 	return [NSString stringWithFormat:@"%llu", key];
 }
 
-// Official Telegram or Swiftgram (same data layout); the AppGroup that worked is remembered.
-static NSString *TGSSharedFolder(void) {
-	static NSString *workingGroup = nil;
-	if (workingGroup) {
-		NSString *folder = [TGSFolderFinder findSharedFolder:workingGroup];
-		if (folder) return folder;
-	}
-	for (NSString *group in @[@"group.ph.telegra.Telegraph", @"group.app.swiftgram.ios"]) {
+// Official Telegram or Swiftgram (same data layout). The AppGroup of the app that sent the
+// notification is tried first (a leftover official-Telegram folder must not win for Swiftgram).
+static NSString *TGSSharedFolder(NSString *bundleIdentifier) {
+	NSArray *groups = [bundleIdentifier isEqualToString:@"app.swiftgram.ios"]
+		? @[@"group.app.swiftgram.ios", @"group.ph.telegra.Telegraph"]
+		: @[@"group.ph.telegra.Telegraph", @"group.app.swiftgram.ios"];
+	for (NSString *group in groups) {
 		NSString *folder = [TGSFolderFinder findSharedFolder:group];
 		if (folder) {
-			workingGroup = group;
 			PLog(@"使用 AppGroup %@", group);
 			return folder;
 		}
@@ -158,8 +158,91 @@ static NSString *TGSSharedFolder(void) {
 	return nil;
 }
 
-static UIImage *TGSPhotoForKey(NSString *folderKey) {
-	NSString *sharedFolder = TGSSharedFolder();
+// Postbox peer table (t2, key = PeerId.toInt64()). The peer's "ph" array holds
+// TelegramMediaImageRepresentation objects whose resource has d (datacenter), p (photo id), s (size spec).
+// Downloaded files are media/telegram-peer-photo-size-<d>-<p>-<s>-0-0; the biggest existing one wins.
+static UIImage *TGSPeerPhotoFromDatabase(NSString *sharedFolder, NSString *accountID, NSString *peerID) {
+	if (!sharedFolder || !TGSIsDigits(peerID)) return nil;
+	NSString *dataFolder = [sharedFolder stringByAppendingPathComponent:@"telegram-data"];
+	NSFileManager *manager = [NSFileManager defaultManager];
+	NSMutableArray *accounts = [NSMutableArray array];
+	if (TGSIsDigits(accountID)) [accounts addObject:[@"account-" stringByAppendingString:accountID]];
+	for (NSString *entry in [manager contentsOfDirectoryAtPath:dataFolder error:nil]) {
+		if ([entry hasPrefix:@"account-"] && ![accounts containsObject:entry]) [accounts addObject:entry];
+	}
+	sqlite3_int64 key = strtoll(peerID.UTF8String, NULL, 10);
+	for (NSString *account in accounts) {
+		NSString *postbox = [[dataFolder stringByAppendingPathComponent:account] stringByAppendingPathComponent:@"postbox"];
+		NSString *dbPath = [postbox stringByAppendingPathComponent:@"db/db_sqlite"];
+		if (![manager fileExistsAtPath:dbPath]) continue;
+		sqlite3 *db = NULL;
+		if (sqlite3_open_v2(dbPath.fileSystemRepresentation, &db, SQLITE_OPEN_READONLY, NULL) != SQLITE_OK) {
+			PLog(@"数据库打不开 %@", account);
+			if (db) sqlite3_close(db);
+			continue;
+		}
+		sqlite3_busy_timeout(db, 300);
+		NSData *value = nil;
+		sqlite3_stmt *statement = NULL;
+		if (sqlite3_prepare_v2(db, "SELECT value FROM t2 WHERE key = ?", -1, &statement, NULL) == SQLITE_OK) {
+			sqlite3_bind_int64(statement, 1, key);
+			if (sqlite3_step(statement) == SQLITE_ROW) {
+				const void *bytes = sqlite3_column_blob(statement, 0);
+				int length = sqlite3_column_bytes(statement, 0);
+				if (bytes && length > 0) value = [NSData dataWithBytes:bytes length:length];
+			}
+		}
+		if (statement) sqlite3_finalize(statement);
+		sqlite3_close(db);
+		if (!value) continue;
+
+		const uint8_t *b = value.bytes;
+		NSUInteger n = value.length;
+		NSData *marker = [NSData dataWithBytes:"\x02ph\x08" length:4];
+		NSRange found = [value rangeOfData:marker options:0 range:NSMakeRange(0, n)];
+		if (found.location == NSNotFound || NSMaxRange(found) + 4 > n) {
+			PLog(@"群/用户 %@ 在 %@ 里没有头像记录", peerID, account);
+			return nil;
+		}
+		NSUInteger offset = NSMaxRange(found);
+		int32_t count;
+		memcpy(&count, b + offset, 4);
+		offset += 4;
+		NSString *best = nil;
+		int32_t bestSpec = -1;
+		for (int32_t i = 0; i < count && offset + 8 <= n; i++) {
+			int32_t objectLength;
+			memcpy(&objectLength, b + offset + 4, 4);
+			NSUInteger start = offset + 8;
+			if (objectLength < 0 || start + (NSUInteger)objectLength > n) break;
+			offset = start + objectLength;
+			int32_t dc = -1, spec = -1;
+			int64_t photoID = 0;
+			for (NSUInteger j = start; j + 3 <= offset; j++) {
+				if (b[j] != 0x01) continue;
+				if (b[j + 1] == 'd' && b[j + 2] == 0x00 && j + 7 <= offset && dc < 0) memcpy(&dc, b + j + 3, 4);
+				else if (b[j + 1] == 'p' && b[j + 2] == 0x01 && j + 11 <= offset && !photoID) memcpy(&photoID, b + j + 3, 8);
+				else if (b[j + 1] == 's' && b[j + 2] == 0x00 && j + 7 <= offset && spec < 0) memcpy(&spec, b + j + 3, 4);
+			}
+			if (dc < 0 || !photoID || spec < 0 || spec <= bestSpec) continue;
+			NSString *file = [NSString stringWithFormat:@"telegram-peer-photo-size-%d-%lld-%d-0-0", dc, photoID, spec];
+			NSString *path = [[postbox stringByAppendingPathComponent:@"media"] stringByAppendingPathComponent:file];
+			BOOL exists = [manager fileExistsAtPath:path];
+			PLog(@"数据库头像 %@：%@", file, exists ? @"文件存在" : @"没下载");
+			if (exists) {
+				best = path;
+				bestSpec = spec;
+			}
+		}
+		UIImage *image = best ? [UIImage imageWithContentsOfFile:best] : nil;
+		if (image) PLog(@"用数据库头像（%@）", TGSDescribe(image));
+		return image;
+	}
+	return nil;
+}
+
+static UIImage *TGSPhotoForKey(NSString *folderKey, NSString *bundleIdentifier) {
+	NSString *sharedFolder = TGSSharedFolder(bundleIdentifier);
 	if (!sharedFolder) {
 		PLog(@"找不到 Telegram / Swiftgram 的 AppGroup");
 		return nil;
@@ -217,6 +300,8 @@ static UIImage *TGSPhotoForKey(NSString *folderKey) {
 	NSString *threadIdentifier = [request respondsToSelector:@selector(threadIdentifier)] ? TGSString([request threadIdentifier]) : nil;
 	NSString *fromID = TGSString(userInfo[@"from_id"]);
 	NSString *peerID = TGSString(userInfo[@"peerId"]);
+	NSString *accountID = TGSString(userInfo[@"accountId"]);
+	NSString *bundleIdentifier = [request respondsToSelector:@selector(sectionIdentifier)] ? TGSString([request sectionIdentifier]) : nil;
 	PLog(@"收到 Telegram 通知 thread=%@ from_id=%@ peerId=%@ userInfo 键=%@", threadIdentifier ?: @"(无)", fromID ?: @"(无)",
 	     peerID ?: @"(无)", userInfo.allKeys);
 
@@ -228,15 +313,19 @@ static UIImage *TGSPhotoForKey(NSString *folderKey) {
 	}
 	if (userInfo[@"chat_id"] || userInfo[@"channel_id"] || [threadIdentifier hasPrefix:@"-"]) {
 		UIImage *conversationImage = TGSConversationImage(request);
-		if (!conversationImage) {
-			PLog(@"群组/频道消息，通知里没有会话图片，交回 ShortLook");
-			return nil;
-		}
 		NSString *groupKey = TGSString(userInfo[@"chat_id"]) ?: TGSString(userInfo[@"channel_id"]) ?: threadIdentifier ?: @"group";
-		PLog(@"群组/频道消息，使用通知自带的会话图片（%@）", TGSDescribe(conversationImage));
 		DDNotificationContactPhotoPromiseOffer *groupOffer = [[NSClassFromString(@"DDNotificationContactPhotoPromiseOffer") alloc] initWithPhotoIdentifier:[@"telegram-group:" stringByAppendingString:groupKey]];
 		[groupOffer fulfillWithBlock:^(DDNotificationContactPhotoPromise *promise) {
-			[promise resolveWithImage:conversationImage];
+			UIImage *image = TGSPeerPhotoFromDatabase(TGSSharedFolder(bundleIdentifier), accountID, peerID);
+			if (!image && conversationImage) {
+				PLog(@"群组/频道消息，使用通知自带的会话图片（%@）", TGSDescribe(conversationImage));
+				image = conversationImage;
+			}
+			if (image) [promise resolveWithImage:image];
+			else {
+				PLog(@"群组/频道消息，没有可用头像，交回 ShortLook");
+				[promise reject];
+			}
 		}];
 		return groupOffer;
 	}
@@ -253,7 +342,8 @@ static UIImage *TGSPhotoForKey(NSString *folderKey) {
 
 	DDNotificationContactPhotoPromiseOffer *offer = [[NSClassFromString(@"DDNotificationContactPhotoPromiseOffer") alloc] initWithPhotoIdentifier:[@"telegram:" stringByAppendingString:folderKey]];
 	[offer fulfillWithBlock:^(DDNotificationContactPhotoPromise *promise) {
-		UIImage *image = TGSPhotoForKey(folderKey);
+		UIImage *image = TGSPhotoForKey(folderKey, bundleIdentifier);
+		if (!image) image = TGSPeerPhotoFromDatabase(TGSSharedFolder(bundleIdentifier), accountID, folderKey);
 		if (image) [promise resolveWithImage:image];
 		else {
 			PLog(@"没有可用头像，交回 ShortLook（显示应用图标）");

@@ -10,6 +10,7 @@ BUNDLE_NAME = ShortLook-Telegram
 ShortLook-Telegram_FILES = TelegramContactPhotoProvider.m TGSFolderFinder.m TGSInitialsPictureGenerator.m
 ShortLook-Telegram_CFLAGS = -fobjc-arc -I../Common
 ShortLook-Telegram_FRAMEWORKS = Foundation UIKit CoreGraphics
+ShortLook-Telegram_LIBRARIES = sqlite3
 ShortLook-Telegram_INSTALL_PATH = /Library/Dynastic/ShortLook/Plugins/ContactPhotoProviders
 
 include $(THEOS_MAKE_PATH)/bundle.mk
