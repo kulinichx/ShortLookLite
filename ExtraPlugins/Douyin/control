@@ -1,6 +1,6 @@
 Package: com.kulinichx.shortlook.plugin.douyin
 Name: ShortLook-Douyin
-Version: 1.0.0+reborn
+Version: 1.0.1+reborn
 Architecture: iphoneos-arm64e
 Description: Show Douyin (抖音) profile pictures in ShortLook when you receive a Douyin notification. For ShortLook Reborn (RootHide).
 Maintainer: kulinichx

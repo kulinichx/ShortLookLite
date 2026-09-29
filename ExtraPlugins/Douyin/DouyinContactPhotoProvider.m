@@ -20,7 +20,8 @@ static id DYKV(id object, NSString *key) {
 	}
 }
 
-// First http(s) image URL under a key that looks like an avatar / image field.
+// First http(s) URL under a key that names the sender's avatar. Generic image keys
+// (image / cover / thumb / attachment) are skipped: for shared videos they hold the video cover.
 static NSString *DYFindImageURL(id object, NSUInteger depth) {
 	if (depth > 5) return nil;
 	if ([object isKindOfClass:[NSString class]] && [(NSString *)object hasPrefix:@"{"]) {
@@ -35,7 +36,7 @@ static NSString *DYFindImageURL(id object, NSUInteger depth) {
 	}
 	if (![object isKindOfClass:[NSDictionary class]]) return nil;
 	NSDictionary *dictionary = object;
-	NSArray *hints = @[@"avatar", @"attachment", @"image", @"img", @"icon", @"pic", @"thumb", @"cover"];
+	NSArray *hints = @[@"avatar", @"head_img", @"headimg", @"portrait"];
 	for (id key in dictionary) {
 		NSString *name = [[key description] lowercaseString];
 		BOOL hinted = NO;
@@ -72,13 +73,7 @@ static UIImage *DYConversationImage(NCNotificationRequest *request) {
 	NSDictionary *userInfo = [notification applicationUserInfo];
 	if (![userInfo isKindOfClass:[NSDictionary class]]) userInfo = nil;
 
-	// 1. Image URL in the push payload (TikTok uses "attachment").
-	NSString *url = SLPayloadString(userInfo, @"attachment") ?: DYFindImageURL(userInfo, 0);
-	if (SLWebURL(url)) {
-		return SLDownloadOffer([@"douyin:" stringByAppendingString:url], SLWebURL(url));
-	}
-
-	// 2. Conversation image attached by iOS (communication notifications).
+	// 1. Conversation image attached by iOS (communication notifications): always the sender.
 	UIImage *image = DYConversationImage(notification.request);
 	if (image) {
 		NSString *identifier = SLPayloadString(userInfo, @"from_uid") ?: SLPayloadString(userInfo, @"conversation_id") ?: [[NSUUID UUID] UUIDString];
@@ -87,6 +82,12 @@ static UIImage *DYConversationImage(NCNotificationRequest *request) {
 			[promise resolveWithImage:image];
 		}];
 		return offer;
+	}
+
+	// 2. Avatar URL in the push payload.
+	NSString *url = DYFindImageURL(userInfo, 0);
+	if (SLWebURL(url)) {
+		return SLDownloadOffer([@"douyin:" stringByAppendingString:url], SLWebURL(url));
 	}
 
 	return nil;
