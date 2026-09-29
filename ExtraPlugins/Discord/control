@@ -1,9 +1,12 @@
-Package: co.dynastic.ios.tweak.shortlook.plugin.contact-photo.discord
-Name: Discord Profile Pictures for ShortLook
-Version: 1.0.1+reborn.1
+Package: com.kulinichx.shortlook.plugin.discord
+Name: ShortLook-Discord
+Version: 1.0.1+reborn
 Architecture: iphoneos-arm64e
 Description: Show Discord users' profile pictures in ShortLook when you receive a Discord notification! Rebuilt for ShortLook Reborn (RootHide).
-Maintainer: Dynastic Development
+Maintainer: kulinichx
 Author: Dynastic Development
 Section: Tweaks (ShortLook)
 Depends: mobilesubstrate, co.dynastic.ios.tweak.shortlook
+Conflicts: co.dynastic.ios.tweak.shortlook.plugin.contact-photo.discord
+Replaces: co.dynastic.ios.tweak.shortlook.plugin.contact-photo.discord
+Provides: co.dynastic.ios.tweak.shortlook.plugin.contact-photo.discord

@@ -1,9 +1,12 @@
-Package: co.dynastic.ios.tweak.shortlook.plugin.contact-photo.instagram
-Name: Instagram Profile Pictures for ShortLook
-Version: 1.0.2+reborn.1
+Package: com.kulinichx.shortlook.plugin.instagram
+Name: ShortLook-Instagram
+Version: 1.0.2+reborn
 Architecture: iphoneos-arm64e
 Description: Show Instagram users' profile pictures in ShortLook when you receive a Instagram notification! Rebuilt for ShortLook Reborn (RootHide).
-Maintainer: AppleBetas
+Maintainer: kulinichx
 Author: Dynastic Development
 Section: Tweaks (ShortLook)
 Depends: mobilesubstrate, co.dynastic.ios.tweak.shortlook
+Conflicts: co.dynastic.ios.tweak.shortlook.plugin.contact-photo.instagram
+Replaces: co.dynastic.ios.tweak.shortlook.plugin.contact-photo.instagram
+Provides: co.dynastic.ios.tweak.shortlook.plugin.contact-photo.instagram

@@ -1,7 +1,6 @@
 #import "DDNotificationViewManager.h"
 #import "DDNotificationViewController.h"
 #import "DDWelcomeNotification.h"
-#import "SLDiag.h"
 
 // iPhone 14 Pro port: the lock glyph lives in the Dynamic Island (SystemAperture scene), which sits
 // above every SpringBoard window. On the notch devices ShortLook was made for, that glyph was part of
@@ -24,13 +23,11 @@ static void SLSetSystemApertureHidden(BOOL hidden) {
 				window.alpha = 0;
 			}
 		}
-		SLDiagLog(@"隐藏灵动岛窗口 %lu 个：%@", (unsigned long)hiddenApertureWindows.count, hiddenApertureWindows);
 	} else {
 		if (!hiddenApertureWindows) return;
 		[hiddenApertureWindows enumerateObjectsUsingBlock:^(UIWindow *window, NSUInteger index, BOOL *stop) {
 			window.alpha = hiddenApertureAlphas[index].doubleValue;
 		}];
-		SLDiagLog(@"恢复灵动岛窗口 %lu 个", (unsigned long)hiddenApertureWindows.count);
 		hiddenApertureWindows = nil;
 		hiddenApertureAlphas = nil;
 	}

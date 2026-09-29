@@ -1,9 +1,12 @@
-Package: co.dynastic.ios.tweak.shortlook.plugin.contact-photo.twitter
-Name: Twitter Profile Pictures for ShortLook
-Version: 1.0.2+reborn.1
+Package: com.kulinichx.shortlook.plugin.twitter
+Name: ShortLook-Twitter
+Version: 1.0.2+reborn
 Architecture: iphoneos-arm64e
 Description: Show Twitter users' profile pictures in ShortLook when you receive a Twitter notification! Rebuilt for ShortLook Reborn (RootHide).
-Maintainer: AppleBetas
+Maintainer: kulinichx
 Author: Dynastic Development
 Section: Tweaks (ShortLook)
 Depends: mobilesubstrate, co.dynastic.ios.tweak.shortlook
+Conflicts: co.dynastic.ios.tweak.shortlook.plugin.contact-photo.twitter
+Replaces: co.dynastic.ios.tweak.shortlook.plugin.contact-photo.twitter
+Provides: co.dynastic.ios.tweak.shortlook.plugin.contact-photo.twitter

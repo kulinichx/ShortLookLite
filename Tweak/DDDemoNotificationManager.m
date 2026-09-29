@@ -1,6 +1,5 @@
 #import "DDDemoNotificationManager.h"
 #import "Private.h"
-#import "SLDiag.h"
 
 @implementation DDDemoNotificationManager {
 	NSMutableArray *sentNotifications;
@@ -27,15 +26,12 @@
 	@try {
 		NCNotificationRequest *request = [self notificationRequestForTitle:@"Hello from ShortLook!" content:@"This is a test notification from ShortLook." fromApplicationIdentifier:[self randomBundleIdentifier]];
 		if (!request) {
-			SLDiagLog(@"测试：没能生成演示通知");
 			return;
 		}
 		NCNotificationDispatcher *dispatcher = [(SpringBoard *)[UIApplication sharedApplication] notificationDispatcher].dispatcher;
-		SLDiagLog(@"测试：演示通知 %@，dispatcher=%@", request, dispatcher);
 		[dispatcher postNotificationWithRequest:request];
 		[sentNotifications addObject:request];
 	} @catch (NSException *exception) {
-		SLDiagLog(@"测试：发送演示通知出错 %@：%@", exception.name, exception.reason);
 	}
 }
 
@@ -71,7 +67,6 @@
 	Class contentClass = NSClassFromString(@"NCMutableNotificationContent");
 	Class optionsClass = NSClassFromString(@"NCMutableNotificationOptions");
 	if (!requestClass || !contentClass || !optionsClass) {
-		SLDiagLog(@"测试：缺少类 request=%@ content=%@ options=%@", requestClass, contentClass, optionsClass);
 		return nil;
 	}
 	NSObject *notificationContent = [[contentClass alloc] init];
@@ -95,7 +90,6 @@
 		@try {
 			[[(SpringBoard *)[UIApplication sharedApplication] notificationDispatcher].dispatcher withdrawNotificationWithRequest:request];
 		} @catch (NSException *exception) {
-			SLDiagLog(@"测试：撤回演示通知出错 %@：%@", exception.name, exception.reason);
 		}
 	}
 	sentNotifications = [NSMutableArray array];

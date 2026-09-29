@@ -21,36 +21,6 @@ static NSString *const kWeChatBundleIdentifier = @"com.tencent.xin";
 @interface WeChatContactPhotoProvider : NSObject <DDNotificationContactPhotoProviding>
 @end
 
-// Diagnostic log: /var/mobile/Library/Caches/ShortLook/WeChat.log
-static void PLog(NSString *format, ...) NS_FORMAT_FUNCTION(1, 2);
-static void PLog(NSString *format, ...) {
-	va_list arguments;
-	va_start(arguments, format);
-	NSString *message = [[NSString alloc] initWithFormat:format arguments:arguments];
-	va_end(arguments);
-	NSLog(@"[ShortLook-WeChat] %@", message);
-	static dispatch_queue_t queue;
-	static dispatch_once_t once;
-	dispatch_once(&once, ^{ queue = dispatch_queue_create("shortlook.plugin.WeChat.log", DISPATCH_QUEUE_SERIAL); });
-	NSDate *date = [NSDate date];
-	dispatch_async(queue, ^{
-		NSString *directory = @"/var/mobile/Library/Caches/ShortLook";
-		[[NSFileManager defaultManager] createDirectoryAtPath:directory withIntermediateDirectories:YES attributes:nil error:nil];
-		NSString *path = [directory stringByAppendingPathComponent:@"WeChat.log"];
-		NSDictionary *attributes = [[NSFileManager defaultManager] attributesOfItemAtPath:path error:nil];
-		if (attributes && attributes.fileSize > 1024 * 1024) [[NSFileManager defaultManager] removeItemAtPath:path error:nil];
-		NSString *line = [NSString stringWithFormat:@"%@ %@\n", date, message];
-		FILE *file = fopen(path.fileSystemRepresentation, "a");
-		if (!file) return;
-		fputs(line.UTF8String, file);
-		fclose(file);
-	});
-}
-
-__attribute__((constructor)) static void PLoaded(void) {
-	PLog(@"插件已加载（进程 %@）", [NSProcessInfo processInfo].processName);
-}
-
 static NSString *WCMD5(NSString *string) {
 	const char *bytes = string.UTF8String;
 	unsigned char digest[CC_MD5_DIGEST_LENGTH];
@@ -86,7 +56,6 @@ static NSString *WCDocumentsPath(void) {
 // Current account first (LocalInfo.lst $objects[2] -> MD5 folder), then the rest by modification date.
 static NSArray<NSString *> *WCDatabaseCandidates(void) {
 	NSString *documents = WCDocumentsPath();
-	PLog(@"微信 Documents：%@", documents ?: @"(找不到微信数据容器)");
 	if (!documents) return @[];
 	NSFileManager *fileManager = [NSFileManager defaultManager];
 	NSMutableArray *candidates = [NSMutableArray array];
@@ -110,7 +79,6 @@ static NSArray<NSString *> *WCDatabaseCandidates(void) {
 		return [dateB compare:dateA];
 	}];
 	[candidates addObjectsFromArray:others];
-	PLog(@"LocalInfo.lst 账号=%@ 候选数据库=%@", objects.count > 2 ? objects[2] : @"(读不到)", candidates);
 	return candidates;
 }
 
@@ -119,7 +87,6 @@ static NSData *WCHeadImageBlob(NSString *user, NSString *path) {
 	sqlite3 *db = NULL;
 	int openResult = sqlite3_open_v2(path.fileSystemRepresentation, &db, SQLITE_OPEN_READONLY | SQLITE_OPEN_NOMUTEX, NULL);
 	if (openResult != SQLITE_OK) {
-		PLog(@"打开数据库失败 %d %s：%@", openResult, db ? sqlite3_errmsg(db) : "?", path);
 		if (db) sqlite3_close(db);
 		return nil;
 	}
@@ -133,8 +100,6 @@ static NSData *WCHeadImageBlob(NSString *user, NSString *path) {
 			int length = sqlite3_column_bytes(statement, 0);
 			result = (bytes && length > 0) ? [NSData dataWithBytes:bytes length:(NSUInteger)length] : [NSData data];
 		}
-	} else {
-		PLog(@"查询失败：%s（%@）", sqlite3_errmsg(db), path);
 	}
 	sqlite3_finalize(statement);
 	sqlite3_close(db);
@@ -195,11 +160,8 @@ static NSString *WCAvatarURL(NSString *user) {
 			if (!blob) continue;
 			lastDatabase = path;
 			result = WCPickURL(blob);
-			PLog(@"在 %@ 找到 %@，头像数据 %lu 字节，URL=%@", path.lastPathComponent, user, (unsigned long)blob.length, result ?: @"(没解析出 URL)");
-			if (!result && blob.length) PLog(@"头像数据前 200 字节：%@", [blob subdataWithRange:NSMakeRange(0, MIN(blob.length, (NSUInteger)200))]);
 			return;
 		}
-		PLog(@"所有数据库里都找不到 %@", user);
 	});
 	return result;
 }
@@ -209,7 +171,6 @@ static NSString *WCAvatarURL(NSString *user) {
 - (DDNotificationContactPhotoPromiseOffer *)contactPhotoPromiseOfferForNotification:(DDUserNotification *)notification {
 	NSDictionary *userInfo = [notification applicationUserInfo];
 	NSString *user = WCString(userInfo[@"u"]);
-	PLog(@"收到微信通知 u=%@ userInfo=%@", user ?: @"(无)", userInfo);
 	if (!user.length) return nil;
 	Class offerClass = NSClassFromString(@"DDNotificationContactPhotoPromiseOffer");
 	DDNotificationContactPhotoPromiseOffer *offer = [[offerClass alloc] initWithPhotoIdentifier:[@"wechat:" stringByAppendingString:user]];
@@ -217,14 +178,12 @@ static NSString *WCAvatarURL(NSString *user) {
 		NSString *urlString = WCAvatarURL(user);
 		NSURL *url = urlString ? [NSURL URLWithString:urlString] : nil;
 		if (!url) {
-			PLog(@"没有头像 URL，交回 ShortLook");
 			[promise reject];
 			return;
 		}
 		NSURLRequest *request = [NSURLRequest requestWithURL:url cachePolicy:NSURLRequestReloadIgnoringLocalCacheData timeoutInterval:8];
 		[[[NSURLSession sharedSession] dataTaskWithRequest:request completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
 			UIImage *image = (data.length && !error) ? [UIImage imageWithData:data] : nil;
-			PLog(@"下载 %@：%ld，%lu 字节，%@，错误=%@", url, (long)([response isKindOfClass:[NSHTTPURLResponse class]] ? ((NSHTTPURLResponse *)response).statusCode : 0), (unsigned long)data.length, image ? @"是图片" : @"不是图片", error.localizedDescription ?: @"无");
 			if (image) [promise resolveWithImage:image];
 			else [promise reject];
 		}] resume];

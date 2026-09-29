@@ -1,9 +1,12 @@
-Package: ch.marcoroth.shortlook.plugin.profile-picture.github
-Name: GitHub Profile Pictures for ShortLook
-Version: 1.0.0+reborn.1
+Package: com.kulinichx.shortlook.plugin.github
+Name: ShortLook-GitHub
+Version: 1.0.0+reborn
 Architecture: iphoneos-arm64e
 Description: Show GitHub Profile Pictures in ShortLook when you receive a GitHub notification! Rebuilt for ShortLook Reborn (RootHide).
-Maintainer: Marco Roth
+Maintainer: kulinichx
 Author: Marco Roth
 Section: Tweaks (ShortLook)
 Depends: mobilesubstrate, co.dynastic.ios.tweak.shortlook
+Conflicts: ch.marcoroth.shortlook.plugin.profile-picture.github
+Replaces: ch.marcoroth.shortlook.plugin.profile-picture.github
+Provides: ch.marcoroth.shortlook.plugin.profile-picture.github

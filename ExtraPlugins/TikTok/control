@@ -1,9 +1,12 @@
-Package: com.jeffresc.shortlook.plugin.contact-photo.tiktok
-Name: TikTok Profile Pictures for ShortLook
-Version: 1.0.0+reborn.1
+Package: com.kulinichx.shortlook.plugin.tiktok
+Name: ShortLook-TikTok
+Version: 1.0.0+reborn
 Architecture: iphoneos-arm64e
 Description: Show TikTok users' profile pictures in ShortLook when you receive a TikTok notification! Rebuilt for ShortLook Reborn (RootHide).
-Maintainer: JeffResc
+Maintainer: kulinichx
 Author: Jeff Rescignano
 Section: Tweaks (ShortLook)
 Depends: mobilesubstrate, co.dynastic.ios.tweak.shortlook
+Conflicts: com.jeffresc.shortlook.plugin.contact-photo.tiktok
+Replaces: com.jeffresc.shortlook.plugin.contact-photo.tiktok
+Provides: com.jeffresc.shortlook.plugin.contact-photo.tiktok
