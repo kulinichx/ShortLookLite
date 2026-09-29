@@ -25,7 +25,10 @@
 	<key>DDNotificationExternalProviderClasses</key>
 	<dict>
 		<key>TelegramContactPhotoProvider</key>
-		<string>ph.telegra.Telegraph</string>
+		<array>
+			<string>ph.telegra.Telegraph</string>
+			<string>app.swiftgram.ios</string>
+		</array>
 	</dict>
 </dict>
 </plist>

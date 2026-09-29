@@ -108,10 +108,28 @@ static NSString *TGSFolderKeyForUserID(NSString *userID) {
 	return [NSString stringWithFormat:@"%llu", key];
 }
 
+// Official Telegram or Swiftgram (same data layout); the AppGroup that worked is remembered.
+static NSString *TGSSharedFolder(void) {
+	static NSString *workingGroup = nil;
+	if (workingGroup) {
+		NSString *folder = [TGSFolderFinder findSharedFolder:workingGroup];
+		if (folder) return folder;
+	}
+	for (NSString *group in @[@"group.ph.telegra.Telegraph", @"group.app.swiftgram.ios"]) {
+		NSString *folder = [TGSFolderFinder findSharedFolder:group];
+		if (folder) {
+			workingGroup = group;
+			PLog(@"使用 AppGroup %@", group);
+			return folder;
+		}
+	}
+	return nil;
+}
+
 static UIImage *TGSPhotoForKey(NSString *folderKey) {
-	NSString *sharedFolder = [TGSFolderFinder findSharedFolder:@"group.ph.telegra.Telegraph"];
+	NSString *sharedFolder = TGSSharedFolder();
 	if (!sharedFolder) {
-		PLog(@"找不到 Telegram 的 AppGroup（group.ph.telegra.Telegraph）");
+		PLog(@"找不到 Telegram / Swiftgram 的 AppGroup");
 		return nil;
 	}
 	NSString *spotlightFolder = [sharedFolder stringByAppendingPathComponent:@"telegram-data/accounts-metadata/spotlight"];
