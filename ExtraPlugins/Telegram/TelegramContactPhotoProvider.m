@@ -96,7 +96,39 @@ static UIImage *TGSConversationImage(NCNotificationRequest *request) {
 	PLog(@"群诊断：content.icons=%@ content.icon=%@", TGSDescribe(icons), TGSDescribe(TGSKV(content, @"icon")));
 	if (!context) return nil;
 	id icon = [icons isKindOfClass:[NSArray class]] ? [(NSArray *)icons firstObject] : TGSKV(content, @"icon");
-	return [icon isKindOfClass:[UIImage class]] ? icon : nil;
+
+	// 1) The original file behind contentURL (intents-remote-image-proxy:?proxyIdentifier=file%253A...).
+	id contentURL = TGSKV(context, @"contentURL");
+	NSString *urlString = [contentURL isKindOfClass:[NSURL class]] ? [(NSURL *)contentURL absoluteString] : TGSString(contentURL);
+	PLog(@"群诊断：contentURL=%@", urlString ?: @"(无)");
+	NSRange range = [urlString rangeOfString:@"proxyIdentifier="];
+	if (range.location != NSNotFound) {
+		NSString *value = [urlString substringFromIndex:NSMaxRange(range)];
+		NSRange amp = [value rangeOfString:@"&"];
+		if (amp.location != NSNotFound) value = [value substringToIndex:amp.location];
+		for (int i = 0; i < 4 && ![value hasPrefix:@"file:"] && ![value hasPrefix:@"/"]; i++) {
+			NSString *decoded = value.stringByRemovingPercentEncoding;
+			if (!decoded || [decoded isEqualToString:value]) break;
+			value = decoded;
+		}
+		NSString *filePath = [value hasPrefix:@"file:"] ? [NSURL URLWithString:value].path : value;
+		if (!filePath && [value hasPrefix:@"file://"]) filePath = [[value substringFromIndex:7] stringByRemovingPercentEncoding];
+		UIImage *fileImage = filePath ? [UIImage imageWithContentsOfFile:filePath] : nil;
+		PLog(@"群诊断：原图 %@：%@", filePath ?: value, fileImage ? TGSDescribe(fileImage) : @"读不到");
+		if (fileImage) return fileImage;
+	}
+
+	// 2) Fallback: content.icons may be a lazy image with no bitmap; redraw it into a real one.
+	if (![icon isKindOfClass:[UIImage class]]) return nil;
+	UIImage *iconImage = icon;
+	PLog(@"群诊断：icon CGImage=%@ CIImage=%@", iconImage.CGImage ? @"有" : @"无", iconImage.CIImage ? @"有" : @"无");
+	if (iconImage.size.width <= 0 || iconImage.size.height <= 0) return nil;
+	UIGraphicsImageRendererFormat *format = [UIGraphicsImageRendererFormat preferredFormat];
+	format.scale = iconImage.scale > 0 ? iconImage.scale : 3;
+	UIImage *redrawn = [[[UIGraphicsImageRenderer alloc] initWithSize:iconImage.size format:format] imageWithActions:^(__unused UIGraphicsImageRendererContext *ctx) {
+		[iconImage drawInRect:CGRectMake(0, 0, iconImage.size.width, iconImage.size.height)];
+	}];
+	return redrawn.CGImage ? redrawn : iconImage;
 }
 
 // Plain user ID -> Telegram's PeerId.toInt64() for namespace CloudUser (0):
