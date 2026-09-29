@@ -1,0 +1,9 @@
+Package: com.kokol.shortlook.plugin.contact-photo.douyin
+Name: Douyin Profile Pictures for ShortLook
+Version: 1.0.0~diag.1
+Architecture: iphoneos-arm64e
+Description: Show Douyin (抖音) profile pictures in ShortLook when you receive a Douyin notification. Diagnostic build for ShortLook Reborn (RootHide).
+Maintainer: kokol
+Author: kokol
+Section: Tweaks (ShortLook)
+Depends: mobilesubstrate, co.dynastic.ios.tweak.shortlook
