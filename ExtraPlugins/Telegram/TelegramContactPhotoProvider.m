@@ -86,13 +86,18 @@ static NSString *TGSFolderKeyForUserID(NSString *userID) {
 	return [NSString stringWithFormat:@"%llu", key];
 }
 
-// Official Telegram or Swiftgram (same data layout). The AppGroup of the app that sent the
-// notification is tried first (a leftover official-Telegram folder must not win for Swiftgram).
+// Official Telegram and clients built on its source (Swiftgram, Nicegram, Nagram, iMe, Turrit)
+// share the same data layout. The AppGroup of the app that sent the notification is tried first
+// (a leftover official-Telegram folder must not win for a third-party client):
+// group.<bundle id>, then any AppGroup whose identifier contains the bundle id and holds
+// telegram-data, then the official Telegram / Swiftgram groups.
 static NSString *TGSSharedFolder(NSString *bundleIdentifier) {
-	NSArray *groups = [bundleIdentifier isEqualToString:@"app.swiftgram.ios"]
-		? @[@"group.app.swiftgram.ios", @"group.ph.telegra.Telegraph"]
-		: @[@"group.ph.telegra.Telegraph", @"group.app.swiftgram.ios"];
-	for (NSString *group in groups) {
+	if (bundleIdentifier.length && ![bundleIdentifier isEqualToString:@"ph.telegra.Telegraph"]) {
+		NSString *folder = [TGSFolderFinder findSharedFolder:[@"group." stringByAppendingString:bundleIdentifier]];
+		if (!folder) folder = [TGSFolderFinder findTelegramFolderForBundleIdentifier:bundleIdentifier];
+		if (folder) return folder;
+	}
+	for (NSString *group in @[@"group.ph.telegra.Telegraph", @"group.app.swiftgram.ios"]) {
 		NSString *folder = [TGSFolderFinder findSharedFolder:group];
 		if (folder) return folder;
 	}

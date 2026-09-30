@@ -17,9 +17,9 @@
 	<key>CFBundlePackageType</key>
 	<string>BNDL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>1.1.0</string>
+	<string>1.2.0</string>
 	<key>CFBundleVersion</key>
-	<string>1.1.0</string>
+	<string>1.2.0</string>
 	<key>DDNotificationExternalProviderAPIVersion</key>
 	<integer>1</integer>
 	<key>DDNotificationExternalProviderClasses</key>
@@ -28,6 +28,10 @@
 		<array>
 			<string>ph.telegra.Telegraph</string>
 			<string>app.swiftgram.ios</string>
+			<string>app.nicegram</string>
+			<string>xyz.nextalone.nagram</string>
+			<string>com.olcorporation.olai</string>
+			<string>com.seastar.turrit</string>
 		</array>
 	</dict>
 </dict>

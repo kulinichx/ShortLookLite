@@ -33,4 +33,27 @@
 	return nil;
 }
 
++ (NSString *)findTelegramFolderForBundleIdentifier:(NSString *)bundleIdentifier {
+	if (!bundleIdentifier.length) return nil;
+	static NSMutableDictionary<NSString *, NSString *> *cache;
+	@synchronized (self) {
+		if (!cache) cache = [NSMutableDictionary dictionary];
+		NSFileManager *manager = [NSFileManager defaultManager];
+		NSString *cached = cache[bundleIdentifier];
+		if (cached && [manager fileExistsAtPath:cached]) return cached;
+		NSString *directory = @"/var/mobile/Containers/Shared/AppGroup/";
+		NSString *needle = bundleIdentifier.lowercaseString;
+		for (NSString *folder in [manager contentsOfDirectoryAtPath:directory error:nil]) {
+			NSString *folderPath = [directory stringByAppendingPathComponent:folder];
+			NSDictionary *metadata = [NSDictionary dictionaryWithContentsOfFile:[folderPath stringByAppendingPathComponent:@".com.apple.mobile_container_manager.metadata.plist"]];
+			id identifier = metadata[@"MCMMetadataIdentifier"];
+			if (![identifier isKindOfClass:[NSString class]] || ![[(NSString *)identifier lowercaseString] containsString:needle]) continue;
+			if (![manager fileExistsAtPath:[folderPath stringByAppendingPathComponent:@"telegram-data"]]) continue;
+			cache[bundleIdentifier] = folderPath;
+			return folderPath;
+		}
+		return nil;
+	}
+}
+
 @end

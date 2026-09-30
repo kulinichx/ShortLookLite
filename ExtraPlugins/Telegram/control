@@ -1,6 +1,6 @@
 Package: com.kulinichx.shortlook.plugin.telegram
 Name: ShortLook-Telegram
-Version: 1.1.0+reborn
+Version: 1.2.0+reborn
 Architecture: iphoneos-arm64e
 Description: Show Telegram Contact Photos in ShortLook when you receive a Telegram notification! Rebuilt for ShortLook Reborn (RootHide).
 Maintainer: kulinichx
