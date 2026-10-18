@@ -51,9 +51,14 @@ static void SLTryOpenNativeSupport(void) {
 	}
 	UIViewController *top = SLTopController();
 	BOOL active = [UIApplication sharedApplication].applicationState == UIApplicationStateActive;
-	if (active && top.view.window && !top.isBeingDismissed && !top.isBeingPresented && ![top isKindOfClass:[UIAlertController class]]) {
+	// 与 WCRefine 一样需要一个位于导航栈里的可见页面，微信会在该导航栈推出原生赞赏页
+	if (active && top.view.window && top.navigationController && !top.isBeingDismissed && !top.isBeingPresented && ![top isKindOfClass:[UIAlertController class]]) {
 		SLPendingRequest = nil;
-		SLOpenWeChatNativeAppreciation(top);
+		__weak UIViewController *weakTop = top;
+		dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.6 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+			UIViewController *presenter = weakTop;
+			if (presenter.view.window) SLOpenWeChatNativeAppreciation(presenter);
+		});
 		return;
 	}
 	NSString *request = SLPendingRequest;
