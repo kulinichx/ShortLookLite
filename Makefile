@@ -5,6 +5,6 @@ INSTALL_TARGET_PROCESSES = SpringBoard
 
 include $(THEOS)/makefiles/common.mk
 
-SUBPROJECTS = Tweak IMD FloraSettings ShortLookSettings Plugins/ShortLook-WeChat Plugins/ShortLook-QQ
+SUBPROJECTS = Tweak IMD FloraSettings ShortLookSettings Plugins/ShortLook-WeChat Plugins/ShortLook-QQ SupportWeChat
 
 include $(THEOS_MAKE_PATH)/aggregate.mk

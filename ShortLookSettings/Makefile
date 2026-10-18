@@ -5,8 +5,10 @@ include $(THEOS)/makefiles/common.mk
 
 BUNDLE_NAME = ShortLookSettings
 
-ShortLookSettings_FILES = ShortLookSettings.m
+ShortLookSettings_FILES = ShortLookSettings.m SLDonationController.m
 ShortLookSettings_CFLAGS = -fobjc-arc
+ShortLookSettings_FRAMEWORKS = UIKit Foundation
+ShortLookSettings_PRIVATE_FRAMEWORKS = Preferences
 # Like the original, the bundle links FloraSettings so DDSettingsController (its principal class) is loaded.
 # libFloraSettings.tbd points at @loader_path/../FloraSettings.bundle/FloraSettings, which works rootful and roothide.
 ShortLookSettings_LDFLAGS = -L. -lFloraSettings

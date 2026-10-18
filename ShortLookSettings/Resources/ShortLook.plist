@@ -190,6 +190,16 @@
 			<key>label</key>
 			<string>Advanced</string>
 		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSLinkCell</string>
+			<key>detail</key>
+			<string>SLDonationController</string>
+			<key>isController</key>
+			<true/>
+			<key>label</key>
+			<string>赞赏支持</string>
+		</dict>
 	</array>
 </dict>
 </plist>
