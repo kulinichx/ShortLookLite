@@ -1,10 +1,9 @@
 #import "../FloraSettings/PSPrivate.h"
 #import "../SupportShared/SLDonationRequest.h"
 
-// This is a relay/choice page, never a QR-code presentation page.
+// A single WeChat appreciation relay; no channel selector or QR-code UI.
 @interface SLDonationController : PSViewController
 @property (nonatomic, strong) UIButton *wechatButton;
-@property (nonatomic, strong) UIButton *alipayButton;
 @property (nonatomic, strong) UILabel *statusLabel;
 @property (nonatomic, assign) BOOL didDispatchAutomatically;
 @property (nonatomic, assign) BOOL openingApplication;
@@ -15,7 +14,7 @@
 
 - (void)viewDidLoad {
 	[super viewDidLoad];
-	self.title = @"赞赏支持";
+	self.title = @"微信赞赏";
 	self.view.backgroundColor = [UIColor systemGroupedBackgroundColor];
 	NSBundle *bundle = [NSBundle bundleForClass:[self class]];
 	NSString *configurationPath = [bundle pathForResource:@"Support" ofType:@"plist"];
@@ -51,13 +50,6 @@
 	self.wechatButton.enabled = self.wechatConfigured;
 	[stack addArrangedSubview:self.wechatButton];
 
-	// No Alipay recipient has been supplied. Do not invent an operative payment entry.
-	self.alipayButton = [UIButton buttonWithType:UIButtonTypeSystem];
-	[self.alipayButton setTitle:@"支付宝（尚未配置）" forState:UIControlStateNormal];
-	self.alipayButton.enabled = NO;
-	[self.alipayButton.heightAnchor constraintGreaterThanOrEqualToConstant:48].active = YES;
-	[stack addArrangedSubview:self.alipayButton];
-
 	self.statusLabel = [[UILabel alloc] init];
 	self.statusLabel.text = self.wechatConfigured ? @"将直接打开微信原生赞赏页，由微信提供金额选择和付款确认。" : @"尚未配置赞赏收款资料。";
 	self.statusLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleBody];
@@ -78,8 +70,8 @@
 
 - (void)viewDidAppear:(BOOL)animated {
 	[super viewDidAppear:animated];
-	// The user already chose "赞赏支持". With WeChat as the only configured channel,
-	// relay that explicit action immediately instead of inserting another manual step.
+	// The user chose "微信赞赏". Relay that explicit action immediately;
+	// there is no channel-selection step.
 	if (!self.didDispatchAutomatically && self.wechatConfigured) {
 		self.didDispatchAutomatically = YES;
 		[self openWeChatAppreciation:nil];

@@ -54,7 +54,7 @@ class SupportTests(unittest.TestCase):
     def test_resource_names_are_local(self):
         config = plist(RESOURCES / "Support.plist")
         self.assertEqual(config["RecipientName"], "SHINY")
-        for key in ("WeChatQRCode", "AlipayQRCode"):
+        for key in ("WeChatQRCode",):
             name = config[key]
             self.assertEqual(Path(name).name, name)
             self.assertNotIn("/", name)
@@ -67,6 +67,15 @@ class SupportTests(unittest.TestCase):
         self.assertEqual(entry, {"Filter": {"Bundles": ["com.tencent.xin"]}})
         source = (PROJECT / "SupportWeChat/Bridge.m").read_text(encoding="utf-8")
         self.assertIn('bundleIdentifier isEqualToString:@"com.tencent.xin"', source)
+
+    def test_wechat_is_the_only_donation_channel(self):
+        config = plist(RESOURCES / "Support.plist")
+        self.assertEqual(set(config), {"Message", "RecipientName", "WeChatQRCode"})
+        source = (SETTINGS / "SLDonationController.m").read_text(encoding="utf-8").lower()
+        self.assertNotIn("alipay", source)
+        self.assertNotIn("支付宝", source)
+        entry = plist(RESOURCES / "ShortLook.plist")["items"][-1]
+        self.assertEqual(entry["label"], "微信赞赏")
 
     def test_build_wiring(self):
         make = (SETTINGS / "Makefile").read_text(encoding="utf-8")
@@ -105,7 +114,6 @@ class SupportTests(unittest.TestCase):
         self.assertIn("didDispatchAutomatically", source)
         self.assertIn("[self openWeChatAppreciation:nil]", source)
         self.assertIn("components.queryItems", source)
-        self.assertIn("self.alipayButton.enabled = NO", source)
         for forbidden in ("UIImageView", "UIActivityViewController", "previewButton", "shareButton",
                           "shareCode:", "尝试免扫码", "UIImageWriteToSavedPhotosAlbum", "PHPhotoLibrary"):
             self.assertNotIn(forbidden, source)

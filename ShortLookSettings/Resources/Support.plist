@@ -8,7 +8,5 @@
 	<string>SHINY</string>
 	<key>WeChatQRCode</key>
 	<string>SupportWeChat.jpg</string>
-	<key>AlipayQRCode</key>
-	<string>SupportAlipay.png</string>
 </dict>
 </plist>
