@@ -81,7 +81,7 @@ class SupportTests(unittest.TestCase):
         source = (PROJECT / "SupportWeChat/Bridge.m").read_text(encoding="utf-8")
         for marker in ("SLDonationTimestampIsFresh", "components.queryItems.count != 3",
                        "initWithUUIDString:", "SLConsumedRequests", "com.apple.Preferences",
-                       "SLPendingAttempt++ >= 40", "method_getImplementation(method) == replacement"):
+                       "SLPendingAttempt++ >= 120", "method_getImplementation(method) == replacement"):
             self.assertIn(marker, source)
         self.assertIn("SLDonationPath", source)
         self.assertIn("if (!SLConsumeURL", source)
@@ -89,7 +89,7 @@ class SupportTests(unittest.TestCase):
     def test_scanner_calls_are_runtime_guarded(self):
         source = (PROJECT / "SupportWeChat/SLWeChatSupportController.m").read_text(encoding="utf-8")
         for marker in ("SLCheckMethod", "initWithCodeType:27 fromScene:2", "SLReadCurrentScanLogic",
-                       "self.previousScanLogic", "@catch", "未通过兼容检查"):
+                       "self.previousScanLogic", "@catch", "原生赞赏入口接口不匹配"):
             self.assertIn(marker, source)
         self.assertIn("self.scanLogic scannerParams:scannerParams", source)
 
@@ -100,16 +100,41 @@ class SupportTests(unittest.TestCase):
                           "payOrder:", "OpenRedEnvelopes", "WCPayTouchID", "NSURLSession", "WKWebView"):
             self.assertNotIn(forbidden, source)
 
-    def test_share_and_empty_channel_safeguards(self):
+    def test_settings_relays_directly_without_qr_ui(self):
         source = (SETTINGS / "SLDonationController.m").read_text(encoding="utf-8")
-        for button in ("previewButton", "shareButton", "openAppButton"):
-            self.assertIn(f"self.{button}.enabled = configured;", source)
-        self.assertIn("尚未配置", source)
-        self.assertIn("popover.barButtonItem = anchor", source)
-        self.assertIn("popover.sourceView = source", source)
+        self.assertIn("didDispatchAutomatically", source)
+        self.assertIn("[self openWeChatAppreciation:nil]", source)
         self.assertIn("components.queryItems", source)
-        self.assertNotIn("UIImageWriteToSavedPhotosAlbum", source)
-        self.assertNotIn("PHPhotoLibrary", source)
+        self.assertIn("self.alipayButton.enabled = NO", source)
+        for forbidden in ("UIImageView", "UIActivityViewController", "previewButton", "shareButton",
+                          "shareCode:", "尝试免扫码", "UIImageWriteToSavedPhotosAlbum", "PHPhotoLibrary"):
+            self.assertNotIn(forbidden, source)
+
+    def test_bridge_does_not_insert_support_navigation(self):
+        source = (PROJECT / "SupportWeChat/Bridge.m").read_text(encoding="utf-8")
+        self.assertIn("SLOpenWeChatNativeAppreciation(top)", source)
+        for forbidden in ("initWithRootViewController:", "modalPresentationStyle", "SLWeChatSupportController alloc"):
+            self.assertNotIn(forbidden, source)
+
+    def test_helper_has_no_visible_qr_or_custom_support_controller(self):
+        source = (PROJECT / "SupportWeChat/SLWeChatSupportController.m").read_text(encoding="utf-8")
+        self.assertIn("@interface SLNativeAppreciationSession : NSObject", source)
+        self.assertIn("[self.scanner scanOnePicture:internalImage]", source)
+        for forbidden in ("UIImageView", "UIActivityViewController", "shareCode:", "UINavigationController alloc",
+                          "@interface SLWeChatSupportController : UIViewController", "CodeType:19"):
+            self.assertNotIn(forbidden, source)
+        self.assertNotIn("addSubview:self.imageContext.view", source)
+        self.assertNotIn("presentViewController:self.imageContext", source)
+
+    def test_only_native_page_entry_counts_as_entry(self):
+        source = (PROJECT / "SupportWeChat/SLWeChatSupportController.m").read_text(encoding="utf-8")
+        self.assertIn("WCPayQRCodeRewardPayerDetailViewController", source)
+        self.assertIn("if (!self.enteredNativePage && page)", source)
+        self.assertIn("self.enteredNativePage = YES", source)
+        self.assertIn("self.window.rootViewController", source)
+        self.assertNotIn("if (!contextKnown)", source)
+        self.assertNotIn("if (!previousKnown)", source)
+        self.assertNotIn("请使用兼容方式", source)
 
 
 if __name__ == "__main__":

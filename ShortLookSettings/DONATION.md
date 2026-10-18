@@ -1,28 +1,32 @@
-# 赞赏支持（实验性免扫码桥接）
+# 直接进入微信原生赞赏
 
-用户于 2026-10-18 确认原生双渠道设置页，并明确允许随包新增微信侧辅助组件。微信素材来自用户的 `DEB/我的赞赏码.jpg`；保持原始字节，SHA-256：`1e7bd3830378d49b22c8023d055b3e54601ec2a7b267eb3f7b4f511ed250fd4a`。
+## 需求与修正
 
-## 使用与范围
+用户要求参照 WCRefine：点击赞赏入口，直接进入微信原生赞赏金额页，再由微信处理留言及最终付款确认。**不展示二维码，不要求用户保存、分享或手动识别图片。** support1 采用二维码主页面，不符合此要求；support2 已删除该主流程。
 
-- ShortLook 设置底部 → 赞赏支持 → 微信 →「尝试免扫码打开微信赞赏」。
-- 随包的 `ShortLookSupportWeChat.dylib` 只过滤主微信 `com.tencent.xin`，不注入扩展，不依赖 WCRefine，不改变通知与头像逻辑。
-- 安装后完全退出并重新打开微信；越狱环境若对微信禁用了插件注入，需要允许此组件加载。
-- URL 只携带固定主机、版本、UUID 和 60 秒有效时间戳。不携带任意图片路径、收款人、金额、回调或执行命令；校验来源应用（若系统提供）、拒绝重复 nonce，普通微信 URL 继续原有处理。
-- 微信侧从已安装的 ShortLookSettings bundle 读取随包图片，检查私有接口签名后再请求微信识别。私有接口缺失／签名改变／无法保存原识码上下文时明确停止，不把打开微信主页当作直达成功。
-- 现代路径参考 supplied WCRefine 静态调用：ScanQRCodeLogicParams(27,2)、NewQRCodeScannerParams(27)、ScanQRCodeLogicController、ScanQRCodeResultsMgr、NewQRCodeScanner.scanOnePicture:。保留并在退出时尽力恢复原识码控制器。旧接口只在签名匹配时使用。
-- 不钩金额选择、付款确认或付款结果，不自动选额／支付，不读取联系人、消息、账户或付款记录，不添加支付 SDK、远端收款配置或分析上报。
-- 金额、留言、收款方核对和最终支付均由微信页面及用户完成。
-- 图片预览、缩放和系统分享是明确标注的兼容方式。不直接请求相册权限或写相册。
+正确素材仍是用户的 `DEB/我的赞赏码.jpg`，随包保存为 `SupportWeChat.jpg`，只供微信内部识别，绝不作为赞赏界面展示。原始字节 SHA-256：`1e7bd3830378d49b22c8023d055b3e54601ec2a7b267eb3f7b4f511ed250fd4a`。
 
-## 当前验证边界
+## 主流程
 
-这是 `1.0.25~support1+reborn` 测试版本。静态检查／编译／链接不等同于设备验证。免扫码路线仍需在目标微信版本、RootHide 注入配置及冷启动／热启动场景实机测试；不存在“所有微信版本已兼容”的保证。若失败，报告微信版本和界面错误，不需要提供密码、付款码或交易记录。
+1. 系统设置 → ShortLook → 赞赏支持。微信是当前唯一已配置渠道，因此该明确点击动作立即转至微信，无需再点“尝试打开”。
+2. 随包的微信辅助组件只处理专用、限时且去重的打开请求，来源应用若系统提供则校验为设置；常规微信 URL 原样继续处理。
+3. 组件在微信**现有导航栈**创建内部识别上下文，按参考包实际调用的现代接口准备逻辑参数和识别器，并将随包素材交给微信。
+4. 下一个赞赏相关可见页面由微信自己提供：原生金额页、留言和支付确认。组件不创建自己的二维码页或支付页。
+5. 接口不支持或超时，明确弹出错误并结束；不会改成二维码、分享或打开首页来冒充直达成功。
 
-## 收款资料
+## 参考调用与边界
 
-`Resources/Support.plist` 管理收款方展示名、说明和 bundle 根目录图片文件名。微信已使用真实赞赏码 `SupportWeChat.jpg`；支付宝尚无素材，因此渠道清楚显示未配置并禁用操作，不使用假码。后续接入 `SupportAlipay.png`，重新编译。不要把付款码、密码或令牌放入资源。
+静态参考链：`MsgImgFullScreenViewController` → `ScanQRCodeLogicParams(27,2)` / `NewQRCodeScannerParams(27)` → `ScanQRCodeLogicController initWithViewController:logicParams:` → `MMServiceCenter` / `ScanQRCodeResultsMgr setScanLogicController:` → `NewQRCodeScanner initWithDelegate:logic scannerParams:` → `scanOnePicture:`。原始参考 deb 只读，在内存中做静态分析，未执行其中代码。
 
-## 验证与回退
+内部图像上下文是原生识别所需对象，其 view 不加入界面、不被 present。辅助组件仅有 NSObject 会话对象、短暂加载指示和失败提示，不再包一层自定义赞赏导航页。用实际出现的 `WCPayQRCodeRewardPayerDetailViewController` 判断原生页面入口，URL 被系统接受或图片已提交都不算进入成功。
+
+私有方法先检查签名。此前额外加入的“必须读到原识码 getter 才能调用”门槛已删除：尽力保存旧上下文，仅当可读回且仍是本次控制器时恢复，不覆盖微信后续新建的识码上下文。没有旧版猜测路径或二维码兜底。
+
+只向主微信 `com.tencent.xin` 注入，不改变通知、头像、共享 Flora，不依赖安装 WCRefine，不钩金额选择、付款确认、交易结果、联系人或消息。不自动选择金额或付款，不读交易记录，不引入支付 SDK、远端收款配置或跟踪代码。
+
+## 安装与验证
+
+当前包版本 `1.0.25~support2+reborn`，RootHide／隐根目标。安装后完全退出重开微信；若对微信禁用注入，需要允许此辅助组件加载。支付宝素材未提供，其入口明确禁用。
 
 ```bash
 python -m unittest discover -s ShortLookSettings/tests -v
@@ -31,6 +35,4 @@ clang -std=c11 -Wall -Wextra -Werror ShortLookSettings/tests/test_request.c -lm 
 make package FINALPACKAGE=1
 ```
 
-正式 arm64e RootHide ABI 及签名打包沿用项目现有 Actions/Theos；Linux 手工链接仅作检查，不作为发布产物。保留已有 DEB 文件。回退时重装之前的主包，并完全退出微信以卸载旧进程内组件。
-
-实机验收：冷／热启动直达、原生选额／取消／返回、二维码收款方一致、微信普通 URL 不受影响、二维码分享与预览、原有通知／头像无回归。没有实机证据前，不把“系统已接受 URL”或“已请求识码”写成支付成功。
+编译检查不替代实机：需确认点入口后进入正确收款方的原生金额页，冷／热启动、选额／取消／返回及原通知／头像无回归。验证页面入口不需要实际付款。若失败，反馈微信版本和错误提示，不提供密码、付款码或交易记录。回退可重装保留的旧包，再完全退出微信。

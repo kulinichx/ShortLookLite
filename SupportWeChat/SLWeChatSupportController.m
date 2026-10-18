@@ -10,10 +10,8 @@
 - (instancetype)initWithCodeType:(int)codeType fromScene:(int)scene;
 - (instancetype)initWithCodeType:(int)codeType;
 - (instancetype)initWithViewController:(UIViewController *)controller logicParams:(id)params;
-- (instancetype)initWithViewController:(UIViewController *)controller CodeType:(int)codeType;
 - (instancetype)initWithDelegate:(id)delegate scannerParams:(id)params;
 - (void)scanOnePicture:(UIImage *)image;
-- (void)doScanQRCode:(UIImage *)image;
 - (void)animateHideViews:(BOOL)hidden;
 + (id)defaultCenter;
 - (id)getService:(Class)serviceClass;
@@ -71,118 +69,112 @@ static id SLReadCurrentScanLogic(id manager, BOOL *known) {
 	return nil;
 }
 
-static UILabel *SLSupportText(NSString *text, UIFontTextStyle style) {
-	UILabel *label = [[UILabel alloc] init];
-	label.text = text;
-	label.numberOfLines = 0;
-	label.textAlignment = NSTextAlignmentCenter;
-	label.font = [UIFont preferredFontForTextStyle:style];
-	label.adjustsFontForContentSizeCategory = YES;
-	return label;
+static char SLNativeSessionKey;
+
+static UIViewController *SLFindRewardPage(UIViewController *root) {
+	Class rewardClass = NSClassFromString(@"WCPayQRCodeRewardPayerDetailViewController");
+	if (!root || !rewardClass) return nil;
+	NSMutableArray<UIViewController *> *queue = [NSMutableArray arrayWithObject:root];
+	NSMutableSet<UIViewController *> *seen = [NSMutableSet set];
+	for (NSUInteger i = 0; i < queue.count && i < 128; i++) {
+		UIViewController *controller = queue[i];
+		if ([seen containsObject:controller]) continue;
+		[seen addObject:controller];
+		if ([controller isKindOfClass:rewardClass]) return controller;
+		if (controller.presentedViewController) [queue addObject:controller.presentedViewController];
+		[queue addObjectsFromArray:controller.childViewControllers];
+		if ([controller isKindOfClass:[UINavigationController class]]) [queue addObjectsFromArray:[(UINavigationController *)controller viewControllers]];
+	}
+	return nil;
 }
 
-@interface SLWeChatSupportController ()
-@property (nonatomic, strong) UIImage *codeImage;
-@property (nonatomic, strong) UILabel *statusLabel;
+static void SLShowNativeEntryError(UIViewController *presenter, NSString *message) {
+	if (!presenter.view.window || [UIApplication sharedApplication].applicationState != UIApplicationStateActive) return;
+	while (presenter.presentedViewController) presenter = presenter.presentedViewController;
+	if ([presenter isKindOfClass:[UIAlertController class]]) return;
+	UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"无法打开微信赞赏" message:message preferredStyle:UIAlertControllerStyleAlert];
+	[alert addAction:[UIAlertAction actionWithTitle:@"知道了" style:UIAlertActionStyleDefault handler:nil]];
+	[presenter presentViewController:alert animated:YES completion:nil];
+}
+
+@interface SLNativeAppreciationSession : NSObject
+@property (nonatomic, weak) UIViewController *presenter;
+@property (nonatomic, weak) UIWindow *window;
 @property (nonatomic, strong) UIViewController *imageContext;
 @property (nonatomic, strong) id<SLWeChatScanAPI> scanLogic;
 @property (nonatomic, strong) id<SLWeChatScanAPI> scanner;
 @property (nonatomic, strong) id<SLWeChatScanAPI> resultsManager;
 @property (nonatomic, strong) id previousScanLogic;
-@property (nonatomic, assign) BOOL autoAttempted;
+@property (nonatomic, assign) BOOL previousContextKnown;
+@property (nonatomic, strong) UIActivityIndicatorView *indicator;
+@property (nonatomic, strong) NSTimer *watchdog;
+@property (nonatomic, strong) NSDate *deadline;
+@property (nonatomic, weak) UIViewController *nativePage;
+@property (nonatomic, assign) BOOL enteredNativePage;
+@property (nonatomic, assign) BOOL finished;
+- (void)start;
 @end
 
-@implementation SLWeChatSupportController
+@implementation SLNativeAppreciationSession
 
-- (void)viewDidLoad {
-	[super viewDidLoad];
-	self.title = @"赞赏支持";
-	self.view.backgroundColor = [UIColor systemGroupedBackgroundColor];
-	self.navigationItem.leftBarButtonItem = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemDone target:self action:@selector(closeSupport:)];
-	NSBundle *bundle = SLWeChatSupportResources();
-	NSString *configurationPath = [bundle pathForResource:@"Support" ofType:@"plist"];
-	NSDictionary *configuration = configurationPath ? [NSDictionary dictionaryWithContentsOfFile:configurationPath] : nil;
-	NSString *name = configuration[@"WeChatQRCode"];
-	if ([name isKindOfClass:[NSString class]] && [name isEqualToString:name.lastPathComponent] && [@[@"jpg", @"jpeg", @"png"] containsObject:name.pathExtension.lowercaseString]) {
-		NSString *path = [bundle pathForResource:name ofType:nil];
-		if (path) self.codeImage = [UIImage imageWithContentsOfFile:path];
-	}
-
-	UIScrollView *scroll = [[UIScrollView alloc] init];
-	scroll.translatesAutoresizingMaskIntoConstraints = NO;
-	[self.view addSubview:scroll];
-	UIStackView *stack = [[UIStackView alloc] init];
-	stack.translatesAutoresizingMaskIntoConstraints = NO;
-	stack.axis = UILayoutConstraintAxisVertical;
-	stack.spacing = 20;
-	[scroll addSubview:stack];
-	[NSLayoutConstraint activateConstraints:@[
-		[scroll.leadingAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.leadingAnchor],
-		[scroll.trailingAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.trailingAnchor],
-		[scroll.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor],
-		[scroll.bottomAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.bottomAnchor],
-		[stack.leadingAnchor constraintEqualToAnchor:scroll.contentLayoutGuide.leadingAnchor constant:24],
-		[stack.trailingAnchor constraintEqualToAnchor:scroll.contentLayoutGuide.trailingAnchor constant:-24],
-		[stack.topAnchor constraintEqualToAnchor:scroll.contentLayoutGuide.topAnchor constant:24],
-		[stack.bottomAnchor constraintEqualToAnchor:scroll.contentLayoutGuide.bottomAnchor constant:-24],
-		[stack.widthAnchor constraintEqualToAnchor:scroll.frameLayoutGuide.widthAnchor constant:-48]
-	]];
-	[stack addArrangedSubview:SLSupportText(@"支持 ShortLook Reborn", UIFontTextStyleTitle2)];
-	UIImageView *image = [[UIImageView alloc] initWithImage:self.codeImage];
-	image.contentMode = UIViewContentModeScaleAspectFit;
-	image.isAccessibilityElement = YES;
-	image.accessibilityLabel = @"项目维护者提供的微信赞赏码";
-	[image.heightAnchor constraintEqualToConstant:280].active = YES;
-	[stack addArrangedSubview:image];
-	self.statusLabel = SLSupportText(@"正在检查微信识码接口…", UIFontTextStyleBody);
-	[stack addArrangedSubview:self.statusLabel];
-	UIButton *retry = [UIButton buttonWithType:UIButtonTypeSystem];
-	[retry setTitle:@"重新请求微信识别" forState:UIControlStateNormal];
-	[retry addTarget:self action:@selector(startRecognition:) forControlEvents:UIControlEventTouchUpInside];
-	[retry.heightAnchor constraintGreaterThanOrEqualToConstant:48].active = YES;
-	[stack addArrangedSubview:retry];
-	UIButton *share = [UIButton buttonWithType:UIButtonTypeSystem];
-	[share setTitle:@"分享赞赏码（兼容方式）" forState:UIControlStateNormal];
-	[share addTarget:self action:@selector(shareCode:) forControlEvents:UIControlEventTouchUpInside];
-	share.enabled = self.codeImage != nil;
-	[share.heightAnchor constraintGreaterThanOrEqualToConstant:48].active = YES;
-	[stack addArrangedSubview:share];
-	[stack addArrangedSubview:SLSupportText(@"赞赏完全自愿。金额选择、收款方核对和最终付款均在微信内由你完成。辅助组件不会自动付款，也不会读取付款记录。", UIFontTextStyleFootnote)];
+- (UIViewController *)applicationRoot {
+	return self.window.rootViewController;
 }
 
-- (void)viewDidAppear:(BOOL)animated {
-	[super viewDidAppear:animated];
-	if (!self.autoAttempted) {
-		self.autoAttempted = YES;
-		__weak SLWeChatSupportController *weakSelf = self;
-		dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-			if (weakSelf.view.window) [weakSelf startRecognition:nil];
-		});
-	}
-}
-
-- (void)restoreScanContext {
-	BOOL known = NO;
-	if (self.resultsManager && SLReadCurrentScanLogic(self.resultsManager, &known) == self.scanLogic && known) [self.resultsManager setScanLogicController:self.previousScanLogic];
-	self.resultsManager = nil;
-	self.previousScanLogic = nil;
+- (void)finish {
+	if (self.finished) return;
+	self.finished = YES;
+	[self.watchdog invalidate];
+	self.watchdog = nil;
+	[self.indicator removeFromSuperview];
+	self.indicator = nil;
+	@try {
+		BOOL known = NO;
+		id current = self.resultsManager ? SLReadCurrentScanLogic(self.resultsManager, &known) : nil;
+		// Never replace a scanner that WeChat has installed since this request.
+		// An absent getter must not block the reference's native entry route.
+		if (known && current == self.scanLogic) [self.resultsManager setScanLogicController:self.previousContextKnown ? self.previousScanLogic : nil];
+	} @catch (NSException *ignored) { }
 	self.scanner = nil;
 	self.scanLogic = nil;
-	if (self.imageContext) {
-		[self.imageContext willMoveToParentViewController:nil];
-		[self.imageContext removeFromParentViewController];
-		self.imageContext = nil;
+	self.resultsManager = nil;
+	self.previousScanLogic = nil;
+	[self.imageContext willMoveToParentViewController:nil];
+	[self.imageContext removeFromParentViewController];
+	self.imageContext = nil;
+	UIViewController *owner = self.presenter;
+	if (objc_getAssociatedObject(owner, &SLNativeSessionKey) == self) objc_setAssociatedObject(owner, &SLNativeSessionKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+}
+
+- (void)fail:(NSString *)reason {
+	UIViewController *presenter = self.presenter;
+	[self finish];
+	NSString *version = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleShortVersionString"] ?: @"未知";
+	SLShowNativeEntryError(presenter, [NSString stringWithFormat:@"%@\n微信版本：%@。未发起付款。", reason, version]);
+}
+
+- (void)checkNativeEntry {
+	if (self.finished) return;
+	if (!self.window.rootViewController) { [self finish]; return; }
+	if ([UIApplication sharedApplication].applicationState != UIApplicationStateActive) return;
+	UIViewController *page = SLFindRewardPage([self applicationRoot]);
+	if (!self.enteredNativePage && page) {
+		// Recognize actual native page entry, never URL acceptance or scanner submission.
+		self.enteredNativePage = YES;
+		self.nativePage = page;
+		self.deadline = [NSDate dateWithTimeIntervalSinceNow:300];
+		[self.indicator removeFromSuperview];
+		self.indicator = nil;
+	}
+	if (self.enteredNativePage) {
+		if (!page || !self.nativePage || [self.deadline timeIntervalSinceNow] <= 0) [self finish];
+	} else if ([self.deadline timeIntervalSinceNow] <= 0) {
+		[self fail:@"微信未打开原生赞赏金额页，已停止本次请求。请反馈此提示和微信版本。"];
 	}
 }
 
-- (void)startRecognition:(id)sender {
-	if (!self.codeImage) {
-		self.statusLabel.text = @"无法读取随包赞赏码。请返回 ShortLook 设置，检查安装是否完整。";
-		return;
-	}
-	if (self.navigationController.topViewController != self || self.presentedViewController) return;
+- (void)start {
 	@try {
-		[self restoreScanContext];
 		Class logicClass = NSClassFromString(@"ScanQRCodeLogicController");
 		Class paramsClass = NSClassFromString(@"ScanQRCodeLogicParams");
 		Class scannerParamsClass = NSClassFromString(@"NewQRCodeScannerParams");
@@ -190,74 +182,91 @@ static UILabel *SLSupportText(NSString *text, UIFontTextStyle style) {
 		Class imageClass = NSClassFromString(@"MsgImgFullScreenViewController");
 		Class centerClass = NSClassFromString(@"MMServiceCenter");
 		Class managerClass = NSClassFromString(@"ScanQRCodeResultsMgr");
-		BOOL modern = SLCheckMethod(paramsClass, @selector(initWithCodeType:fromScene:), "@", @[@"iI", @"iI"]) &&
-			SLCheckMethod(scannerParamsClass, @selector(initWithCodeType:), "@", @[@"iI"]) &&
+		Class rewardClass = NSClassFromString(@"WCPayQRCodeRewardPayerDetailViewController");
+		// Both 32/64-bit integer enum signatures use the same arm64 argument registers
+		// for these positive, fixed values; reject objects/floats/unknown arguments.
+		BOOL supported = imageClass && [imageClass isSubclassOfClass:[UIViewController class]] && rewardClass &&
+			SLCheckMethod(paramsClass, @selector(initWithCodeType:fromScene:), "@", @[@"iIqQ", @"iIqQ"]) &&
+			SLCheckMethod(scannerParamsClass, @selector(initWithCodeType:), "@", @[@"iIqQ"]) &&
 			SLCheckMethod(logicClass, @selector(initWithViewController:logicParams:), "@", @[@"@", @"@"]) &&
 			SLCheckMethod(scannerClass, @selector(initWithDelegate:scannerParams:), "@", @[@"@", @"@"]) &&
 			SLCheckMethod(scannerClass, @selector(scanOnePicture:), "v", @[@"@"]) &&
 			SLCheckMethod(object_getClass(centerClass), @selector(defaultCenter), "@", @[]) &&
 			SLCheckMethod(centerClass, @selector(getService:), "@", @[@"#@"]) &&
 			SLCheckMethod(managerClass, @selector(setScanLogicController:), "v", @[@"@"]);
-		BOOL legacy = SLCheckMethod(logicClass, @selector(initWithViewController:CodeType:), "@", @[@"@", @"iI"]) &&
-			SLCheckMethod(logicClass, @selector(doScanQRCode:), "v", @[@"@"]);
-		if (!imageClass || ![imageClass isSubclassOfClass:[UIViewController class]] || (!modern && !legacy)) {
-			NSString *version = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleShortVersionString"] ?: @"未知";
-			self.statusLabel.text = [NSString stringWithFormat:@"微信 %@ 的识码接口未通过兼容检查，已停止自动识别。可使用下方兼容方式；没有发起付款。", version];
+		if (!supported) { [self fail:@"当前微信的原生赞赏入口接口不匹配。没有切换到其他收款方式。"];
+			return; }
+		if (SLFindRewardPage([self applicationRoot])) {
+			[self fail:@"微信已有赞赏页面，请先退出该页面，再从 ShortLook 重新打开，以免混淆收款方。"];
 			return;
 		}
-		self.imageContext = [[imageClass alloc] init];
-		if (!self.imageContext) { self.statusLabel.text = @"微信未能创建识码上下文，已停止。"; return; }
-		[self addChildViewController:self.imageContext];
-		[self.imageContext didMoveToParentViewController:self];
-		if (SLCheckMethod(imageClass, @selector(animateHideViews:), "v", @[@"Bc"])) [(id<SLWeChatScanAPI>)self.imageContext animateHideViews:YES];
-		if (modern) {
-			// Source/code-type observed in the supplied WCRefine reference, not a payment amount.
-			id params = [(id<SLWeChatScanAPI>)[paramsClass alloc] initWithCodeType:27 fromScene:2];
-			id scannerParams = [(id<SLWeChatScanAPI>)[scannerParamsClass alloc] initWithCodeType:27];
-			self.scanLogic = [(id<SLWeChatScanAPI>)[logicClass alloc] initWithViewController:self.imageContext logicParams:params];
-			id<SLWeChatScanAPI> center = [(Class<SLWeChatScanAPI>)centerClass defaultCenter];
-			id<SLWeChatScanAPI> manager = [center getService:managerClass];
-			self.scanner = [(id<SLWeChatScanAPI>)[scannerClass alloc] initWithDelegate:self.scanLogic scannerParams:scannerParams];
-			if (!params || !scannerParams || !self.scanLogic || !manager || !self.scanner) {
-				[self restoreScanContext]; self.statusLabel.text = @"微信识码组件未就绪，已停止。请使用兼容方式。"; return;
-			}
-			BOOL contextKnown = NO;
-			self.previousScanLogic = SLReadCurrentScanLogic(manager, &contextKnown);
-			if (!contextKnown) { [self restoreScanContext]; self.statusLabel.text = @"无法安全保存微信当前识码上下文，已停止。请使用兼容方式。"; return; }
-			self.resultsManager = manager;
-			[manager setScanLogicController:self.scanLogic];
-			[self.scanner scanOnePicture:self.codeImage];
-		} else {
-			self.scanLogic = [(id<SLWeChatScanAPI>)[logicClass alloc] initWithViewController:self.imageContext CodeType:19];
-			if (!self.scanLogic) { [self restoreScanContext]; self.statusLabel.text = @"微信识码组件未就绪，已停止。"; return; }
-			[self.scanLogic doScanQRCode:self.codeImage];
+		NSBundle *bundle = SLWeChatSupportResources();
+		NSString *path = [bundle pathForResource:@"Support" ofType:@"plist"];
+		NSDictionary *configuration = path ? [NSDictionary dictionaryWithContentsOfFile:path] : nil;
+		NSString *name = configuration[@"WeChatQRCode"];
+		if (![name isKindOfClass:[NSString class]] || ![name isEqualToString:name.lastPathComponent] || ![@[@"jpg", @"jpeg", @"png"] containsObject:name.pathExtension.lowercaseString]) {
+			[self fail:@"随包赞赏资料缺失。"];
+			return;
 		}
-		self.statusLabel.text = @"已把随包赞赏码交给微信识别。请以微信实际显示的赞赏页面为准，并核对收款方；这不代表识别或付款已经成功。";
+		NSString *imagePath = [bundle pathForResource:name ofType:nil];
+		UIImage *internalImage = imagePath ? [UIImage imageWithContentsOfFile:imagePath] : nil;
+		if (!internalImage) { [self fail:@"无法读取随包赞赏资料。"];
+			return; }
+		self.imageContext = [[imageClass alloc] init];
+		if (!self.imageContext) { [self fail:@"微信未创建原生赞赏上下文。"];
+			return; }
+		// Match the supplied reference: a native image context for decoding, NOT a
+		// visible image/QR screen. Its view is never added or presented by this code.
+		[self.presenter addChildViewController:self.imageContext];
+		[self.imageContext didMoveToParentViewController:self.presenter];
+		if (SLCheckMethod(imageClass, @selector(animateHideViews:), "v", @[@"Bc"])) [(id<SLWeChatScanAPI>)self.imageContext animateHideViews:YES];
+
+		id params = [(id<SLWeChatScanAPI>)[paramsClass alloc] initWithCodeType:27 fromScene:2];
+		id scannerParams = [(id<SLWeChatScanAPI>)[scannerParamsClass alloc] initWithCodeType:27];
+		self.scanLogic = [(id<SLWeChatScanAPI>)[logicClass alloc] initWithViewController:self.imageContext logicParams:params];
+		id<SLWeChatScanAPI> center = [(Class<SLWeChatScanAPI>)centerClass defaultCenter];
+		self.resultsManager = [center getService:managerClass];
+		self.scanner = [(id<SLWeChatScanAPI>)[scannerClass alloc] initWithDelegate:self.scanLogic scannerParams:scannerParams];
+		if (!params || !scannerParams || !self.scanLogic || !self.resultsManager || !self.scanner) {
+			[self fail:@"微信原生赞赏组件未就绪。"];
+			return;
+		}
+		BOOL previousKnown = NO;
+		@try { self.previousScanLogic = SLReadCurrentScanLogic(self.resultsManager, &previousKnown); }
+		@catch (NSException *ignored) { previousKnown = NO; }
+		self.previousContextKnown = previousKnown;
+		[self.resultsManager setScanLogicController:self.scanLogic];
+
+		self.indicator = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleMedium];
+		self.indicator.translatesAutoresizingMaskIntoConstraints = NO;
+		self.indicator.accessibilityLabel = @"正在打开微信赞赏";
+		[self.presenter.view addSubview:self.indicator];
+		[NSLayoutConstraint activateConstraints:@[
+			[self.indicator.centerXAnchor constraintEqualToAnchor:self.presenter.view.centerXAnchor],
+			[self.indicator.centerYAnchor constraintEqualToAnchor:self.presenter.view.centerYAnchor]
+		]];
+		[self.indicator startAnimating];
+		self.deadline = [NSDate dateWithTimeIntervalSinceNow:15];
+		__weak SLNativeAppreciationSession *weakSelf = self;
+		self.watchdog = [NSTimer scheduledTimerWithTimeInterval:0.25 repeats:YES block:^(NSTimer *timer) {
+			SLNativeAppreciationSession *session = weakSelf;
+			if (session) [session checkNativeEntry]; else [timer invalidate];
+		}];
+		// The next visible support screen must be WeChat's own amount picker.
+		[self.scanner scanOnePicture:internalImage];
 	} @catch (NSException *exception) {
-		// Report only the exception class, never image contents, account data or payment details.
-		self.statusLabel.text = [NSString stringWithFormat:@"微信识码接口出现异常（%@），已停止。请使用兼容方式。", exception.name];
-		@try { [self restoreScanContext]; } @catch (NSException *ignored) { }
-	}
-}
-
-- (void)shareCode:(UIButton *)sender {
-	if (!self.codeImage || self.presentedViewController) return;
-	UIActivityViewController *sheet = [[UIActivityViewController alloc] initWithActivityItems:@[self.codeImage] applicationActivities:nil];
-	sheet.popoverPresentationController.sourceView = sender;
-	sheet.popoverPresentationController.sourceRect = sender.bounds;
-	[self presentViewController:sheet animated:YES completion:nil];
-}
-
-- (void)closeSupport:(id)sender {
-	@try { [self restoreScanContext]; } @catch (NSException *ignored) { }
-	[self dismissViewControllerAnimated:YES completion:nil];
-}
-
-- (void)viewWillDisappear:(BOOL)animated {
-	[super viewWillDisappear:animated];
-	if (!self.navigationController || self.navigationController.isBeingDismissed || self.isMovingFromParentViewController) {
-		@try { [self restoreScanContext]; } @catch (NSException *ignored) { }
+		[self fail:[NSString stringWithFormat:@"微信原生赞赏入口异常（%@），已停止。", exception.name]];
 	}
 }
 
 @end
+
+void SLOpenWeChatNativeAppreciation(UIViewController *presenter) {
+	if (!presenter.view.window || [UIApplication sharedApplication].applicationState != UIApplicationStateActive) return;
+	if (objc_getAssociatedObject(presenter, &SLNativeSessionKey)) return;
+	SLNativeAppreciationSession *session = [[SLNativeAppreciationSession alloc] init];
+	session.presenter = presenter;
+	session.window = presenter.view.window;
+	objc_setAssociatedObject(presenter, &SLNativeSessionKey, session, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+	[session start];
+}

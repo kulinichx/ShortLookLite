@@ -1,7 +1,6 @@
 #import <UIKit/UIKit.h>
 
-@interface SLWeChatSupportController : UIViewController
-@end
-
-// Resolve resources relative to this loaded dylib; works without a hard-coded jailbreak root.
+// Directly request WeChat's native appreciation flow on its existing navigation stack.
+// No custom support/QR view controller is presented.
+void SLOpenWeChatNativeAppreciation(UIViewController *presenter);
 NSBundle *SLWeChatSupportResources(void);

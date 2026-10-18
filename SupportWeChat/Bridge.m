@@ -43,31 +43,22 @@ static UIViewController *SLTopController(void) {
 	return nil;
 }
 
-static void SLTryPresentSupport(void) {
+static void SLTryOpenNativeSupport(void) {
 	if (!SLPendingRequest) return;
-	if (!SLDonationTimestampIsFresh(SLPendingTimestamp, [[NSDate date] timeIntervalSince1970]) || SLPendingAttempt++ >= 40) {
+	if (!SLDonationTimestampIsFresh(SLPendingTimestamp, [[NSDate date] timeIntervalSince1970]) || SLPendingAttempt++ >= 120) {
 		SLPendingRequest = nil;
 		return;
 	}
 	UIViewController *top = SLTopController();
 	BOOL active = [UIApplication sharedApplication].applicationState == UIApplicationStateActive;
-	if (active && [top isKindOfClass:[SLWeChatSupportController class]]) {
-		SLPendingRequest = nil;
-		return;
-	}
 	if (active && top.view.window && !top.isBeingDismissed && !top.isBeingPresented && ![top isKindOfClass:[UIAlertController class]]) {
-		SLWeChatSupportController *support = [[SLWeChatSupportController alloc] init];
-		Class navigationClass = NSClassFromString(@"MMUINavigationController");
-		if (!navigationClass || ![navigationClass isSubclassOfClass:[UINavigationController class]]) navigationClass = [UINavigationController class];
-		UINavigationController *navigation = [[navigationClass alloc] initWithRootViewController:support];
-		navigation.modalPresentationStyle = UIModalPresentationFullScreen;
 		SLPendingRequest = nil;
-		[top presentViewController:navigation animated:YES completion:nil];
+		SLOpenWeChatNativeAppreciation(top);
 		return;
 	}
 	NSString *request = SLPendingRequest;
 	dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.25 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-		if ([SLPendingRequest isEqualToString:request]) SLTryPresentSupport();
+		if ([SLPendingRequest isEqualToString:request]) SLTryOpenNativeSupport();
 	});
 }
 
@@ -97,7 +88,7 @@ static BOOL SLConsumeURL(NSURL *url, NSString *sourceApplication) {
 		SLPendingRequest = nonce;
 		SLPendingTimestamp = timestamp;
 		SLPendingAttempt = 0;
-		SLTryPresentSupport();
+		SLTryOpenNativeSupport();
 	});
 	return YES;
 }
@@ -190,7 +181,7 @@ __attribute__((constructor)) static void SLInitializeSupportBridge(void) {
 		[center addObserverForName:UIApplicationDidBecomeActiveNotification object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification *note) {
 			SLHookAppDelegate([UIApplication sharedApplication].delegate);
 			for (UIScene *scene in [UIApplication sharedApplication].connectedScenes) SLHookSceneDelegate(scene.delegate);
-			SLTryPresentSupport();
+			SLTryOpenNativeSupport();
 		}];
 		dispatch_async(dispatch_get_main_queue(), ^{
 			SLHookAppDelegate([UIApplication sharedApplication].delegate);
