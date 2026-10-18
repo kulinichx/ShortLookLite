@@ -48,6 +48,11 @@ class NativeDonationTests(unittest.TestCase):
         self.assertEqual(found[0]['label'], '赞赏支持')
         self.assertIn('SLDonationController.m', (PREFS / 'Makefile').read_text())
 
+    def test_settings_links_its_framework_dependencies(self):
+        makefile = (PREFS / 'Makefile').read_text()
+        self.assertIn('ShortLookSettings_FRAMEWORKS = UIKit Foundation', makefile)
+        self.assertIn('ShortLookSettings_PRIVATE_FRAMEWORKS = Preferences', makefile)
+
     def test_transit_opens_once_after_appearance(self):
         text = source(PREFS / 'SLDonationController.m')
         self.assertIn('- (void)viewDidAppear:', text)
